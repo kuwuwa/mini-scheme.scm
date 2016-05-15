@@ -106,7 +106,7 @@
                   (+ end-index 1))))
         #f)))
 
-  (define (parse-s-expr code _index)
+  (define (parse-expr code _index)
     ; parameter: (possibly) the index of the beginning parenthesized expression
     ; return: (the list of terms) or #f
     (define (parse-terms code _ind)
@@ -155,6 +155,6 @@
       (parse-number code ind)
       (parse-label code ind)
       (parse-string code ind)
-      (parse-s-expr code ind)
+      (parse-expr code ind)
       (parse-quote code ind)))
 
