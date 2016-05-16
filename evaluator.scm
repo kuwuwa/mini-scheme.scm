@@ -1,4 +1,5 @@
 ; evaluator.scm
+(load "./state.scm")
 (load "./result.scm")
 
 
@@ -10,7 +11,7 @@
   (define (evaluate-empty tree env)
     (and
       (eq? (tree 'type) 'empty)
-      tree))
+      (new-state tree env)))
 
   ; bool
   (define (evaluate-bool tree env)
@@ -21,7 +22,7 @@
   (define (evaluate-char tree env)
     (and
       (eq? (tree 'type) 'char)
-      (v/t 'char (string-ref (tree 'value) 0))))
+      (new-state tree env)))
 
   ; number
   (define (evaluate-number tree env)
@@ -38,28 +39,30 @@
     (and
       (eq? (tree 'type) 'number)
       (let ((val (string->integer (tree 'value))))
-        (v/t 'number val))))
+        (new-state (v/t 'number val) env))))
 
   ; string
   (define (evaluate-string tree env)
     (and
       (eq? (tree 'type) 'string)
-      tree))
+      (new-state tree env)))
 
   ; label
   (define (evaluate-label tree env)
     (and
       (eq? (tree 'type) 'label)
-      ((env 'find) (tree 'value))))
+      (new-state ((env 'find) (tree 'value)) env)))
 
   ; expr
   (define (evaluate-expr tree env)
-    (define (execute-proc _proc args env)
-      (let ((proc (evaluate _proc env)))
-        (cond ((proc 'error?) proc)
-              ((eq? 'syntax (proc 'type))  ((proc 'value) args env))
-              ((eq? 'closure (proc 'type)) ((proc 'value) args env))
-              (else (v/t 'error "invalid application")))))
+    (define (execute-proc proc-t args env)
+      (let* ((next-state (evaluate proc-t env))
+             (proc (next-state 'value))
+             (next-env (next-state 'env)))
+        (cond ((proc 'error?) next-state)
+              ((eq? 'syntax (proc 'type))  ((proc 'value) args next-env))
+              ((eq? 'closure (proc 'type)) ((proc 'value) args next-env))
+              (else (new-state (v/t 'error "invalid application") next-env)))))
 
     (and
       (eq? (tree 'type) 'p-expr)
@@ -74,7 +77,4 @@
     (evaluate-string tree env)
     (evaluate-label tree env)
     (evaluate-expr tree env)
-    (v/t 'error "undefined")))
-
-
-
+    (new-state (v/t 'error "undefined") env)))
