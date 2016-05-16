@@ -1,12 +1,5 @@
 ; parser.scm
 
-(define (make-result type value)
-  ; a closure that represents a result of parsing
-  (lambda (cmd)
-    (cond ((eq? 'error? cmd) (eq? 'error type))
-          ((eq? 'type cmd) type)
-          ((eq? 'value cmd) value))))
-
 
 (define (skip-delimiter code ind)
   ; return the index of the leftmost delimiter(space, newline)
@@ -15,7 +8,6 @@
         ((memq (string-ref code ind) '(#\  #\newline))
             (skip-delimiter code (+ ind 1)))
         (else ind)))
-
 
 (define (parse-term code ind)
   ; parameter: scheme expressions
@@ -26,34 +18,40 @@
       (and (< ind (- (string-length code) 1))
            (equal? #\( (string-ref code ind))
            (equal? #\) (string-ref code (+ ind 1)))
-           (cons (make-result 'empty '()) (+ ind 2)))))
+           (cons (v/t 'empty '()) (+ ind 2)))))
+
+  ; (define (parse-char code _ind)
+  ;   (and (< ind (- (string-length code) 3))
+  ;        (equal? #\# (string-ref code ind))
+  ;        (equal? #\\ (string-ref code (+ ind 1)))
+  ;        (let ((ch (string-copy code (+ ind 2) (+ ind 3))))
+  ;          (cons (v/t 'char ch) (+ ind 3)))))
 
   (define (parse-bool code _ind)
     (let ((ind (skip-delimiter code _ind)))
       (and (< ind (- (string-length code) 1))
            (equal? #\# (string-ref code ind))
            (let ((ch (string-ref code (+ ind 1))))
-             (cond ((equal? ch #\t) (cons (make-result 'bool #t) (+ ind 2)))
-                   ((equal? ch #\f) (cons (make-result 'bool #f) (+ ind 2)))
-                   (else (cons (make-result 'error "invalid syntax") ())))))))
+             (cond ((equal? ch #\t) (cons (v/t 'bool #t) (+ ind 2)))
+                   ((equal? ch #\f) (cons (v/t 'bool #f) (+ ind 2)))
+                   (else (cons (v/t 'error "invalid syntax") ())))))))
 
   (define (parse-number code _ind)
-    ; parameter: (possibly) the index of the first character in a number literal
-    ; return (the value . the end index) or #f
-    (define (scan ind acc)
+    (define (scan ind)
       (if (>= ind (string-length code))
-        (cons (make-result 'number acc) ind)
+        ind
         (let ((ch (string-ref code ind)))
-          (cond ((char-numeric? ch) (scan (+ ind 1)
-                                          (+ (* 10 acc) (- (char->integer ch) 48))))
-                ((memq ch (string->list " \n()'")) (cons (make-result 'number acc)
-                                                         ind))
-                (else (cons (make-result 'error "invalid identifier name") ()))))))
+          (cond ((char-numeric? ch) (scan (+ ind 1)))
+                ((memq ch (string->list " \n()'")) ind)
+                (else #f)))))
 
-    (let ((first-ch (string-ref code (skip-delimiter code _ind))))
-      (if (char-numeric? first-ch)
-        (scan _ind 0)
-        #f)))
+    (let ((ind (skip-delimiter code _ind)))
+      (and
+        (char-numeric? (string-ref code ind))
+        (let ((end-ind (scan ind)))
+          (if end-ind
+            (cons (v/t 'number (string-copy code ind end-ind)) end-ind)
+            (cons (v/t 'error "invalid identifier name") '()))))))
 
   (define (parse-label code _ind)
     ; parameter: (possibly) the index of the first character in a label in string
@@ -77,7 +75,7 @@
             (char-alphabetic?  ch)
             (member ch (string->list "!$%&*+-./<=>?@^_")))
         (let ((end-index (end-of-label code ind)))
-          (cons (make-result 'label (string-copy code ind end-index))
+          (cons (v/t 'label (string-copy code ind end-index))
                 end-index))
         #f)))
 
@@ -98,11 +96,11 @@
                (equal? #\" (string-ref code ind)))
         (let ((end-index (end-of-string code (+ ind 1))))
           (if (null? end-index)
-            (cons (make-result 'error
+            (cons (v/t 'error
                                "EOT in a string literal")
-                  ())
-            (cons (make-result 'string
-                               (string-copy code ind end-index))
+                  '())
+            (cons (v/t 'string
+                               (string-copy code (+ ind 1) end-index))
                   (+ end-index 1))))
         #f)))
 
@@ -122,12 +120,13 @@
                     (let* ((rest (parse-terms code next-ind))
                            (terms (car rest))
                            (last-ind (cdr rest)))
-                      (cond ((null? terms) (cons (make-result 's-expr
+                      (cond ((null? terms) (cons (v/t 'p-expr
                                                                (cons term '()))
                                                   last-ind))
                             ((terms 'error?) rest)
                             (else
-                              (cons (make-result 's-expr (cons term terms))
+                              (cons (v/t 'p-expr
+                                                 (cons term (terms 'value)))
                                     last-ind))))))))))
 
     (let ((index (skip-delimiter code _index)))
@@ -145,12 +144,13 @@
                (next-ind (cdr result)))
           (if (term 'error?)
             result
-            (cons (make-result 'quote term)
+            (cons (v/t 'quote term)
                   next-ind)))
         #f)))
 
   (or 
       (parse-empty code ind)
+      ; (parse-char code ind)
       (parse-bool code ind)
       (parse-number code ind)
       (parse-label code ind)
