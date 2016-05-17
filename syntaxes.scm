@@ -67,13 +67,13 @@
 (define (new-closure labels body)
 
   (define (evaluate-args args _env)
-    (define (rec args env)
+    (define (loop args env)
       (if (null? args)
         (new-state (v/t 'empty '()) env)
         (let ((state (evaluate (car args) env)))
           (if (state 'error?)
             state
-            (let ((rest-st (rec (cdr args) (state 'env))))
+            (let ((rest-st (loop (cdr args) (state 'env))))
               (cond ((rest-st 'error?) rest-st)
                     ((eq? 'empty ((rest-st 'value) 'type))
                      (new-state (v/t 'args (cons (state 'value) '()))
@@ -83,7 +83,7 @@
                                                   ((rest-st 'value) 'value)))
                                  (rest-st 'env)))))))))
 
-    (rec args _env))
+    (loop args _env))
 
   (define closure (lambda (_args env)
     (if (not (equal? (length labels) (length _args)))
@@ -122,7 +122,7 @@
 
 
 (define (check-body body)
-  (define (rec body prev-type)
+  (define (loop body prev-type)
     (if (null? body)
       (if (eq? prev-type 'define)
         (v/t 'error "invalid body form")
@@ -131,6 +131,6 @@
              (rest (cdr body)))
         (if (and (not (eq? prev-type 'define)) (eq? (term 'type) 'define))
           (v/t 'error "invalid body form")
-          (rec rest (term 'type))))))
+          (loop rest (term 'type))))))
 
-  (rec body 'define))
+  (loop body 'define))
