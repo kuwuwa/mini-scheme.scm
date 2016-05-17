@@ -17,7 +17,7 @@
   (define (evaluate-bool tree env)
     (and
       (eq? (tree 'type) 'bool)
-      tree))
+      (new-state tree env)))
 
   (define (evaluate-char tree env)
     (and
@@ -56,19 +56,22 @@
   ; expr
   (define (evaluate-expr tree env)
     (define (execute-proc proc-t args env)
-      (let* ((next-state (evaluate proc-t env))
-             (proc (next-state 'value))
-             (next-env (next-state 'env)))
-        (cond ((proc 'error?) next-state)
+      (let* ((proc-st (evaluate proc-t env))
+             (proc (proc-st 'value))
+             (next-env (proc-st 'env)))
+        (cond ((proc 'error?) proc)
               ((eq? 'syntax (proc 'type))  ((proc 'value) args next-env))
               ((eq? 'closure (proc 'type)) ((proc 'value) args next-env))
               (else (new-state (v/t 'error "invalid application") next-env)))))
 
+    ; (let ((po
     (and
       (eq? (tree 'type) 'p-expr)
       (let ((proc (car (tree 'value)))
             (args (cdr (tree 'value))))
-        (execute-proc proc args env))))
+        (execute-proc proc args env)))
+    ; )) (display ((po 'value) 'value)) po)
+    )
 
   (or 
     (evaluate-empty tree env)

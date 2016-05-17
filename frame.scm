@@ -9,7 +9,7 @@
                (cond (pair (cdr pair))
                      ((null? outer-frame)
                       (v/t 'error
-                                   (append "variable `" name "' not found")))
+                                   (string-append "variable `" name "' not found")))
                      (else ((outer-frame 'find) name))))))
           ((eq? cmd 'push)
            (lambda (label value)
