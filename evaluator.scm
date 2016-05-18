@@ -47,10 +47,10 @@
       (eq? (tree 'type) 'string)
       (new-state tree env)))
 
-  ; label
-  (define (evaluate-label tree env)
+  ; symbol
+  (define (evaluate-symbol tree env)
     (and
-      (eq? (tree 'type) 'label)
+      (eq? (tree 'type) 'symbol)
       (new-state ((env 'find) (tree 'value)) env)))
 
   ; expr
@@ -78,6 +78,6 @@
     (evaluate-bool tree env)
     (evaluate-number tree env)
     (evaluate-string tree env)
-    (evaluate-label tree env)
+    (evaluate-symbol tree env)
     (evaluate-expr tree env)
     (new-state (v/t 'error "undefined") env)))

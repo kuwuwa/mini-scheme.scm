@@ -27,11 +27,11 @@
     (new-state err-malformed env)
     (let* ((arg0 (car args)))
       (if (or (not (memq (arg0 'type) '(p-expr empty)))
-              (not (check-all (lambda (t) (eq? 'label (t 'type)))
+              (not (check-all (lambda (t) (eq? 'symbol (t 'type)))
                               (arg0 'value))))
         (new-state err-malformed env)
-        (let* ((labels (map (lambda (p) (p 'value)) (arg0 'value)))
-               (closure (new-closure labels (cdr args))))
+        (let* ((symbols (map (lambda (p) (p 'value)) (arg0 'value)))
+               (closure (new-closure symbols (cdr args))))
           (new-state closure env))))))
 
 (define (syntax-quote args env))
@@ -54,6 +54,9 @@
 
 (define (syntax-cond args env))
 
+(define (syntax-else args env)
+  (v/t 'error "invalid syntax"))
+
 (define (syntax-and args env))
 
 (define (syntax-or args env))
@@ -64,7 +67,7 @@
 
 ; utils
 
-(define (new-closure labels body)
+(define (new-closure symbols body)
 
   (define (evaluate-args args _env)
     (define (loop args env)
@@ -86,12 +89,12 @@
     (loop args _env))
 
   (define closure (lambda (_args env)
-    (if (not (equal? (length labels) (length _args)))
+    (if (not (equal? (length symbols) (length _args)))
       (new-state (v/t 'error "wrong number of arguments") env)
       (let ((args (evaluate-args _args env)))
         (if (args 'error?)
           args
-          (let* ((new-env (frame (map cons labels ((args 'value) 'value)) env))
+          (let* ((new-env (frame (map cons symbols ((args 'value) 'value)) env))
                  (state (evaluate-body body new-env)))
             (new-state (state 'value) env)))))))
 

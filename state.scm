@@ -8,7 +8,7 @@
           ((eq? cmd 'error?) (eq? (val 'type) 'error))
           ((eq? cmd 'env) env)
           ((eq? cmd 'find) (env 'find))
-          ((eq? cmd 'push) (lambda (label value)
+          ((eq? cmd 'push) (lambda (symbol value)
                              (state type
                                     value
-                                    ((env 'push) label value)))))))
+                                    ((env 'push) symbol value)))))))

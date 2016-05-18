@@ -12,6 +12,6 @@
                                    (string-append "variable `" name "' not found")))
                      (else ((outer-frame 'find) name))))))
           ((eq? cmd 'push)
-           (lambda (label value)
-             (frame (cons (cons label value) alist)
+           (lambda (symbol value)
+             (frame (cons (cons symbol value) alist)
                     outer-frame))))))

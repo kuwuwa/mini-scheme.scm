@@ -53,13 +53,13 @@
             (cons (v/t 'number (string-copy code ind end-ind)) end-ind)
             (cons (v/t 'error "invalid identifier name") '()))))))
 
-  (define (parse-label code _ind)
-    ; parameter: (possibly) the index of the first character in a label in string
+  (define (parse-symbol code _ind)
+    ; parameter: (possibly) the index of the first character in a symbol in string
     ; return: (the result and its end index) or #f
-    (define (end-of-label code ind)
+    (define (end-of-symbol code ind)
       ; parameter: the index of the first character in an identifier in string
       ; return: the end index of the id
-      (define (char-label? ch)
+      (define (char-symbol? ch)
         (or (char-alphabetic? ch)
             (char-numeric? ch)
             (member ch (string->list "!$%&*+-./<=>?@^_"))))
@@ -67,15 +67,15 @@
       (if (>= ind (string-length code))
         ind
         (let ((ch (string-ref code ind)))
-          (if (char-label? ch) (end-of-label code (+ ind 1)) ind))))
+          (if (char-symbol? ch) (end-of-symbol code (+ ind 1)) ind))))
 
     (let* ((ind (skip-delimiter code _ind))
            (ch (string-ref code ind)))
       (if (or
             (char-alphabetic?  ch)
             (member ch (string->list "!$%&*+-./<=>?@^_")))
-        (let ((end-index (end-of-label code ind)))
-          (cons (v/t 'label (string-copy code ind end-index))
+        (let ((end-index (end-of-symbol code ind)))
+          (cons (v/t 'symbol (string-copy code ind end-index))
                 end-index))
         #f)))
 
@@ -153,7 +153,7 @@
       ; (parse-char code ind)
       (parse-bool code ind)
       (parse-number code ind)
-      (parse-label code ind)
+      (parse-symbol code ind)
       (parse-string code ind)
       (parse-expr code ind)
       (parse-quote code ind)))
