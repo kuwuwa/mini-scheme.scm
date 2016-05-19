@@ -72,7 +72,7 @@
 
     ; (let ((po
     (and
-      (eq? (tree 'type) 'p-expr)
+      (eq? (tree 'type) 'list)
       (let ((proc (car (tree 'value)))
             (args (cdr (tree 'value))))
         (execute-proc proc args env)))

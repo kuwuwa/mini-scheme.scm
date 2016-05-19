@@ -120,13 +120,12 @@
                     (let* ((rest (parse-terms code next-ind))
                            (terms (car rest))
                            (last-ind (cdr rest)))
-                      (cond ((null? terms) (cons (v/t 'p-expr
+                      (cond ((null? terms) (cons (v/t 'list
                                                                (cons term '()))
                                                   last-ind))
                             ((terms 'error?) rest)
                             (else
-                              (cons (v/t 'p-expr
-                                                 (cons term (terms 'value)))
+                              (cons (v/t 'list (cons term (terms 'value)))
                                     last-ind))))))))))
 
     (let ((index (skip-delimiter code _index)))
@@ -144,8 +143,7 @@
                (next-ind (cdr result)))
           (if (term 'error?)
             result
-            (cons (v/t 'quote term)
-                  next-ind)))
+            (cons (v/t 'quote term) next-ind)))
         #f)))
 
   (or 

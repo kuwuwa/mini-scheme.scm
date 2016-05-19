@@ -26,13 +26,14 @@
   (if (< (length args) 1)
     (new-state err-malformed env)
     (let* ((arg0 (car args)))
-      (if (or (not (memq (arg0 'type) '(p-expr empty)))
+      (if (or (not (memq (arg0 'type) '(list empty)))
               (not (check-all (lambda (t) (eq? 'symbol (t 'type)))
                               (arg0 'value))))
         (new-state err-malformed env)
         (let* ((symbols (map (lambda (p) (p 'value)) (arg0 'value)))
                (closure (new-closure symbols (cdr args))))
           (new-state closure env))))))
+
 
 (define (syntax-quote args env)
   (define err-malformed (v/t 'error "malformed quote"))
@@ -41,6 +42,7 @@
     err-malformed
     (let ((tree (car args)))
       (new-state tree env))))
+
 
 (define (syntax-set! args env))
 
