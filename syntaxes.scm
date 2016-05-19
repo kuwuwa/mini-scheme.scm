@@ -34,7 +34,13 @@
                (closure (new-closure symbols (cdr args))))
           (new-state closure env))))))
 
-(define (syntax-quote args env))
+(define (syntax-quote args env)
+  (define err-malformed (v/t 'error "malformed quote"))
+
+  (if (not (= (length args) 1))
+    err-malformed
+    (let ((tree (car args)))
+      (new-state tree env))))
 
 (define (syntax-set! args env))
 

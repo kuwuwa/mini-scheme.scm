@@ -53,6 +53,12 @@
       (eq? (tree 'type) 'symbol)
       (new-state ((env 'find) (tree 'value)) env)))
 
+  ; quote
+  (define (evaluate-quote tree env)
+    (and
+      (eq? (tree 'type) 'quote)
+      (new-state (tree 'value) env)))
+
   ; expr
   (define (evaluate-expr tree env)
     (define (execute-proc proc-t args env)
@@ -79,5 +85,6 @@
     (evaluate-number tree env)
     (evaluate-string tree env)
     (evaluate-symbol tree env)
+    (evaluate-quote tree env)
     (evaluate-expr tree env)
     (new-state (v/t 'error "undefined") env)))
