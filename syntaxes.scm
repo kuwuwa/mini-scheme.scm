@@ -21,7 +21,7 @@
 
 
 (define (syntax-lambda args env)
-  (define err-malformed (v/t 'error "malformed lambda"))
+  (define err-malformed (new-state (v/t 'error "malformed lambda") env))
 
   (if (< (length args) 1)
     (new-state err-malformed env)
@@ -36,7 +36,7 @@
 
 
 (define (syntax-quote args env)
-  (define err-malformed (v/t 'error "malformed quote"))
+  (define err-malformed (new-state (v/t 'error "malformed quote") env))
 
   (if (not (= (length args) 1))
     err-malformed
@@ -44,13 +44,30 @@
       (new-state tree env))))
 
 
-(define (syntax-set! args env))
+(define (syntax-set! args env)
+  (define err-malformed (new-state (v/t 'error "malformed set!") env))
+
+  (if (or (not (= (length args) 2))
+          (not (eq? 'symbol ((car args) 'type))))
+    err-malformed
+    (let ((name ((car args) 'value))
+          (next-state (evaluate (cadr args) env)))
+      (if (next-state 'error?)
+        next-state
+        (let ((new-env (((next-state 'env) 'replace) name (next-state 'value))))
+          ; (begin (display (((new-env 'find) "x") 'value))
+          (new-state (v/t 'undef ()) new-env))))))
+          ; )
 
 (define (syntax-let args env))
 
+(define (syntax-named-let args env))
+
 (define (syntax-let* args env))
 
+
 (define (syntax-letrec args env))
+
 
 (define (syntax-if args env)
   (if (not (eq? 3 (length args)))
