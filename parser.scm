@@ -13,12 +13,6 @@
   ; parameter: scheme expressions
   ; return: (a result of parsing the first expr . end index of the expr)
   ;         if the given expression is invalid, the end index is empty.
-  (define (parse-empty code _ind)
-    (let ((ind (skip-delimiter code _ind)))
-      (and (< ind (- (string-length code) 1))
-           (equal? #\( (string-ref code ind))
-           (equal? #\) (string-ref code (+ ind 1)))
-           (cons (v/t 'empty '()) (+ ind 2)))))
 
   ; (define (parse-char code _ind)
   ;   (and (< ind (- (string-length code) 3))
@@ -104,13 +98,14 @@
                   (+ end-index 1))))
         #f)))
 
-  (define (parse-expr code _index)
+  (define (parse-list code _index)
     ; parameter: (possibly) the index of the beginning parenthesized expression
     ; return: (the list of terms) or #f
     (define (parse-terms code _ind)
       (let ((ind (skip-delimiter code _ind)))
-        (cond ((>= ind (string-length code)) (cons '() ind))
-              ((equal? #\) (string-ref code ind)) (cons '() (+ ind 1)))
+        (cond ((>= ind (string-length code)) (cons (v/t 'error "EOF inside a list")
+                                                   ()))
+              ((equal? #\) (string-ref code ind)) (cons (v/t 'empty ()) (+ ind 1)))
               (else
                 (let* ((result (parse-term code ind))
                        (term (car result))
@@ -120,13 +115,11 @@
                     (let* ((rest (parse-terms code next-ind))
                            (terms (car rest))
                            (last-ind (cdr rest)))
-                      (cond ((null? terms) (cons (v/t 'list
-                                                               (cons term '()))
-                                                  last-ind))
-                            ((terms 'error?) rest)
-                            (else
-                              (cons (v/t 'list (cons term (terms 'value)))
-                                    last-ind))))))))))
+                      (if (terms 'error?)
+                        rest
+                        (cons (v/t 'list (cons term (terms 'value)))
+                              last-ind)))))))))
+
 
     (let ((index (skip-delimiter code _index)))
       (if (equal? #\( (string-ref code index))
@@ -147,12 +140,10 @@
         #f)))
 
   (or 
-      (parse-empty code ind)
-      ; (parse-char code ind)
       (parse-bool code ind)
       (parse-number code ind)
       (parse-symbol code ind)
       (parse-string code ind)
-      (parse-expr code ind)
+      (parse-list code ind)
       (parse-quote code ind)))
 
