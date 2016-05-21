@@ -59,9 +59,39 @@
           (new-state (v/t 'undef ()) new-env))))))
           ; )
 
-(define (syntax-let args env))
 
-(define (syntax-named-let args env))
+(define (syntax-let args env)
+  (define err-malformed (new-state (v/t 'error "malformed let") env))
+
+  (cond ((= (length args) 3) (syntax-named-let args env))
+        ((not (= (length args) 2)) err-malformed)
+        (else
+          (let ((next-state (evaluate-bindings (car args) env)))
+            (if (next-state 'error?)
+              next-state
+              (let* ((bindings ((next-state 'value) 'value))
+                     (new-env (frame bindings (next-state 'env)))
+                     (result-state (evaluate (cadr args) new-env)))
+                (new-state (result-state 'value) ((result-state 'env) 'outer-frame))))))))
+
+
+(define (syntax-named-let args env)
+  (define err-malformed (new-state (v/t 'error "malformed let") env))
+
+  (if (not (eq? ((car args) 'type) 'symbol))
+    err-malformed
+    (let ((next-state (evaluate-bindings (cadr args) env)))
+      (if (next-state 'error?)
+        next-state
+        (let* ((bindings ((next-state 'value) 'value))
+               (symbols (map car bindings))
+               (closname ((car args) 'value))
+               (body (caddr args))
+               (loop (new-closure symbols body))
+               (new-env (frame (cons (cons closname loop) bindings) (next-state 'env)))
+               (result-state (evaluate body)))
+          (new-state (result-state 'value) ((next-state 'env) 'outer-frame)))))))
+
 
 (define (syntax-let* args env))
 
@@ -91,6 +121,31 @@
 (define (syntax-do args env))
 
 ; utils
+
+(define (evaluate-bindings tree _env)
+  (define (loop bindings env)
+    (define invalid-syntax (new-state (v/t 'error "invalid syntax") env))
+
+    (if (null? bindings)
+      (new-state (v/t 'bindings '()) env)
+      (let ((cell (car bindings)))
+        (if (or (not (eq? (cell 'type) 'list))
+                (not (= (length (cell 'value)) 2)))
+          invalid-syntax
+          (let ((label (car (cell 'value)))
+                (next-state (evaluate (cadr (cell 'value)) env)))
+            (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
+                  ((next-state 'error?) next-state)
+                  (else
+                    (let ((binding (cons (label 'value) (next-state 'value)))
+                          (rest (loop (cdr bindings) (next-state 'env))))
+                      (if (rest 'error?)
+                        rest
+                        (new-state (v/t 'bindings (cons binding
+                                                        ((rest 'value) 'value)))
+                                   (rest 'env)))))))))))
+  (loop (tree 'value) _env))
+
 
 (define (new-closure symbols body)
 

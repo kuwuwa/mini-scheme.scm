@@ -24,5 +24,6 @@
                        (let ((new-outer-frame ((outer-frame 'replace) name value)))
                          (if (new-outer-frame 'error?)
                            new-outer-frame
-                           (v/t 'frame (frame alist new-outer-frame))))))))))))
+                           (v/t 'frame (frame alist new-outer-frame)))))))))
+          ((eq? cmd 'outer-frame) outer-frame))))
 
