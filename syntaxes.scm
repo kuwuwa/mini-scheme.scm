@@ -63,14 +63,14 @@
 (define (syntax-let args env)
   (define err-malformed (v/t 'error "malformed let"))
 
-  (cond ((= (length args) 3) (syntax-named-let args env))
-        ((not (= (length args) 2)) err-malformed)
+  (cond ((< (length args) 2) err-malformed)
+        ((eq? ((car args) 'type) 'label) (syntax-named-let args env))
         (else
           (let ((bindings (evaluate-bindings (car args) env)))
             (if (bindings 'error?)
               bindings
               (let ((new-env (frame (bindings 'value) env)))
-                (evaluate (cadr args) new-env)))))))
+                (evaluate-body (cdr args) new-env)))))))
 
 
 (define (syntax-named-let args env)
@@ -83,13 +83,21 @@
         bindings
         (let* ((symbols (map car bindings))
                (closname ((car args) 'value))
-               (body (caddr args))
+               (body (cddr args))
                (clos (new-closure symbols body env))
                (new-env (frame (cons (cons closname clos) (bindings 'value)) env)))
-          (evaluate body new-env))))))
+          (evaluate-body body new-env))))))
 
 
-(define (syntax-let* args env))
+(define (syntax-let* args env)
+  (define err-malformed (v/t 'error "malformed let"))
+
+  (if (< (length args) 2) err-malformed
+    (let* ((new-env (frame '() env))
+           (bindings (evaluate-bindings* (car args) new-env)))
+      (if (bindings 'error?)
+        bindings
+        (evaluate-body (cdr args) new-env)))))
 
 
 (define (syntax-letrec args env))
@@ -139,6 +147,33 @@
                         rest
                         (v/t 'bindings (cons binding (rest 'value))))))))))))
   (loop (tree 'value)))
+
+
+(define (evaluate-bindings* tree env)
+  (define (loop bindings)
+    (define invalid-syntax (v/t 'error "invalid syntax"))
+
+    (if (null? bindings)
+      (v/t 'bindings '())
+      (let ((cell (car bindings)))
+        (if (or (not (eq? (cell 'type) 'list))
+                (not (= (length (cell 'value)) 2)))
+          invalid-syntax
+          (let ((label (car (cell 'value)))
+                (value (evaluate (cadr (cell 'value)) env)))
+            (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
+                  ((value 'error?) value)
+                  (else (begin
+                    ((env 'push!) (label 'value) value)
+                    (let ((binding (cons (label 'value) value))
+                          (rest (loop (cdr bindings))))
+                      (if (rest 'error?)
+                        rest
+                        (v/t 'bindings
+                             (cons binding (rest 'value)))))))))))))
+
+  (loop (tree 'value)))
+
 
 
 (define (new-closure symbols body callee-env)
