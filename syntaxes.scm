@@ -21,76 +21,72 @@
 
 
 (define (syntax-lambda args env)
-  (define err-malformed (new-state (v/t 'error "malformed lambda") env))
+  (define err-malformed (v/t 'error "malformed lambda"))
 
   (if (< (length args) 1)
-    (new-state err-malformed env)
+    err-malformed
     (let* ((arg0 (car args)))
       (if (or (not (memq (arg0 'type) '(list empty)))
               (not (check-all (lambda (t) (eq? 'symbol (t 'type)))
                               (arg0 'value))))
-        (new-state err-malformed env)
+        err-malformed
         (let* ((symbols (map (lambda (p) (p 'value)) (arg0 'value)))
-               (closure (new-closure symbols (cdr args))))
-          (new-state closure env))))))
+               (closure (new-closure symbols (cdr args) env)))
+          closure)))))
 
 
 (define (syntax-quote args env)
-  (define err-malformed (new-state (v/t 'error "malformed quote") env))
+  (define err-malformed (v/t 'error "malformed quote"))
 
   (if (not (= (length args) 1))
     err-malformed
     (let ((tree (car args)))
-      (new-state tree env))))
+      tree)))
 
 
 (define (syntax-set! args env)
-  (define err-malformed (new-state (v/t 'error "malformed set!") env))
+  (define err-malformed (v/t 'error "malformed set!"))
 
   (if (or (not (= (length args) 2))
           (not (eq? 'symbol ((car args) 'type))))
     err-malformed
     (let ((name ((car args) 'value))
-          (next-state (evaluate (cadr args) env)))
-      (if (next-state 'error?)
-        next-state
-        (let ((new-env (((next-state 'env) 'replace) name (next-state 'value))))
-          ; (begin (display (((new-env 'find) "x") 'value))
-          (new-state (v/t 'undef ()) new-env))))))
-          ; )
+          (value (evaluate (cadr args) env)))
+      (if (value 'error?)
+        value
+        (let ((rc (env 'replace! name value)))
+          (if (rc 'error?)
+            rc
+            value))))))
 
 
 (define (syntax-let args env)
-  (define err-malformed (new-state (v/t 'error "malformed let") env))
+  (define err-malformed (v/t 'error "malformed let"))
 
   (cond ((= (length args) 3) (syntax-named-let args env))
         ((not (= (length args) 2)) err-malformed)
         (else
-          (let ((next-state (evaluate-bindings (car args) env)))
-            (if (next-state 'error?)
-              next-state
-              (let* ((bindings ((next-state 'value) 'value))
-                     (new-env (frame bindings (next-state 'env)))
-                     (result-state (evaluate (cadr args) new-env)))
-                (new-state (result-state 'value) ((result-state 'env) 'outer-frame))))))))
+          (let ((bindings (evaluate-bindings (car args) env)))
+            (if (bindings 'error?)
+              bindings
+              (let ((new-env (frame (bindings 'value) env)))
+                (evaluate (cadr args) new-env)))))))
 
 
 (define (syntax-named-let args env)
-  (define err-malformed (new-state (v/t 'error "malformed let") env))
+  (define err-malformed (v/t 'error "malformed let"))
 
   (if (not (eq? ((car args) 'type) 'symbol))
     err-malformed
-    (let ((next-state (evaluate-bindings (cadr args) env)))
-      (if (next-state 'error?)
-        next-state
-        (let* ((bindings ((next-state 'value) 'value))
-               (symbols (map car bindings))
+    (let ((bindings (evaluate-bindings (cadr args) env)))
+      (if (bindings 'error?)
+        bindings
+        (let* ((symbols (map car bindings))
                (closname ((car args) 'value))
                (body (caddr args))
-               (loop (new-closure symbols body))
-               (new-env (frame (cons (cons closname loop) bindings) (next-state 'env)))
-               (result-state (evaluate body)))
-          (new-state (result-state 'value) ((next-state 'env) 'outer-frame)))))))
+               (clos (new-closure symbols body env))
+               (new-env (frame (cons (cons closname clos) (bindings 'value)) env)))
+          (evaluate body new-env))))))
 
 
 (define (syntax-let* args env))
@@ -104,8 +100,8 @@
     (v/t 'error "malformed if")
     (let ((condition (evaluate (car args) env)))
       (cond ((condition 'error?) condition)
-            ((condition 'value) (evaluate (cadr args) (condition 'env)))
-            (else (evaluate (caddr args) (condition 'env)))))))
+            ((condition 'value) (evaluate (cadr args) env))
+            (else (evaluate (caddr args) env))))))
 
 (define (syntax-cond args env))
 
@@ -122,61 +118,54 @@
 
 ; utils
 
-(define (evaluate-bindings tree _env)
-  (define (loop bindings env)
-    (define invalid-syntax (new-state (v/t 'error "invalid syntax") env))
+(define (evaluate-bindings tree env)
+  (define (loop bindings)
+    (define invalid-syntax (v/t 'error "invalid syntax"))
 
     (if (null? bindings)
-      (new-state (v/t 'bindings '()) env)
+      (v/t 'bindings '())
       (let ((cell (car bindings)))
         (if (or (not (eq? (cell 'type) 'list))
                 (not (= (length (cell 'value)) 2)))
           invalid-syntax
           (let ((label (car (cell 'value)))
-                (next-state (evaluate (cadr (cell 'value)) env)))
+                (value (evaluate (cadr (cell 'value)) env)))
             (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
-                  ((next-state 'error?) next-state)
+                  ((value 'error?) value)
                   (else
-                    (let ((binding (cons (label 'value) (next-state 'value)))
-                          (rest (loop (cdr bindings) (next-state 'env))))
+                    (let ((binding (cons (label 'value) value))
+                          (rest (loop (cdr bindings))))
                       (if (rest 'error?)
                         rest
-                        (new-state (v/t 'bindings (cons binding
-                                                        ((rest 'value) 'value)))
-                                   (rest 'env)))))))))))
-  (loop (tree 'value) _env))
+                        (v/t 'bindings (cons binding (rest 'value))))))))))))
+  (loop (tree 'value)))
 
 
-(define (new-closure symbols body)
-
-  (define (evaluate-args args _env)
-    (define (loop args env)
+(define (new-closure symbols body callee-env)
+  (define (evaluate-args args env)
+    (define (loop args)
       (if (null? args)
-        (new-state (v/t 'empty '()) env)
-        (let ((state (evaluate (car args) env)))
-          (if (state 'error?)
-            state
-            (let ((rest-st (loop (cdr args) (state 'env))))
-              (cond ((rest-st 'error?) rest-st)
-                    ((eq? 'empty ((rest-st 'value) 'type))
-                     (new-state (v/t 'args (cons (state 'value) '()))
-                                (rest-st 'env)))
+        (v/t 'empty '())
+        (let ((result (evaluate (car args) env)))
+          (if (result 'error?)
+            result
+            (let ((rest (loop (cdr args))))
+              (cond ((rest 'error?) rest)
+                    ((eq? 'empty (rest 'type))
+                     (v/t 'args (cons result '())))
                     (else
-                      (new-state (v/t 'args (cons (state 'value)
-                                                  ((rest-st 'value) 'value)))
-                                 (rest-st 'env)))))))))
+                      (v/t 'args (cons result (rest 'value))))))))))
 
-    (loop args _env))
+    (loop args))
 
-  (define closure (lambda (_args env)
+  (define closure (lambda (_args caller-env)
     (if (not (equal? (length symbols) (length _args)))
-      (new-state (v/t 'error "wrong number of arguments") env)
-      (let ((args (evaluate-args _args env)))
+      (v/t 'error "wrong number of arguments")
+      (let ((args (evaluate-args _args caller-env)))
         (if (args 'error?)
           args
-          (let* ((new-env (frame (map cons symbols ((args 'value) 'value)) env))
-                 (state (evaluate-body body new-env)))
-            (new-state (state 'value) env)))))))
+          (let* ((new-env (frame (map cons symbols (args 'value)) callee-env)))
+            (evaluate-body body new-env)))))))
 
   (let ((check-result (check-body body)))
     (if (check-result 'error?)
@@ -185,17 +174,17 @@
 
 
 (define (evaluate-body body env)
-  (define (loop body state)
+  (define (loop body return-value)
     (if (null? body)
-      state
+      return-value
       (let* ((term (car body))
              (rest (cdr body))
-             (next-state (evaluate term (state 'env))))
-        (if (next-state 'error?)
-          next-state
-          (loop rest next-state)))))
+             (next-value (evaluate term env)))
+        (if (next-value 'error?)
+          next-value
+          (loop rest next-value)))))
 
-  (loop body (new-state (v/t 'undef '()) env)))
+  (loop body (v/t 'undef '())))
 
 
 (define (check-all pred lst)

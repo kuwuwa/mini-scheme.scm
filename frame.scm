@@ -10,20 +10,17 @@
                      ((null? outer-frame)
                       (v/t 'error (string-append "variable `" name "' not found")))
                      (else ((outer-frame 'find) name))))))
-          ((eq? cmd 'push)
+          ((eq? cmd 'push!)
            (lambda (symbol value)
-             (frame (cons (cons symbol value) alist)
+             (frame (set! alist (cons (cons symbol value) alist))
                     outer-frame)))
-          ((eq? cmd 'replace)
+          ((eq? cmd 'replace!)
            (lambda (name value)
              (let ((pair (assoc name alist)))
-               (cond (pair (frame (cons (cons name value) alist) outer-frame))
+               (cond (pair (begin
+                             (set! alist (cons (cons name value) alist))
+                             (v/t 'undef "value replaced successfully")))
                      ((null? outer-frame)
                       (v/t 'error (string-append "variable `" name "' not found")))
-                     (else
-                       (let ((new-outer-frame ((outer-frame 'replace) name value)))
-                         (if (new-outer-frame 'error?)
-                           new-outer-frame
-                           (v/t 'frame (frame alist new-outer-frame)))))))))
-          ((eq? cmd 'outer-frame) outer-frame))))
+                     (else ((outer-frame 'replace) name value)))))))))
 
