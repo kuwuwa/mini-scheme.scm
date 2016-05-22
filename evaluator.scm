@@ -45,7 +45,7 @@
   (define (evaluate-string tree env)
     (and
       (eq? (tree 'type) 'string)
-      (new-state tree env)))
+      tree))
 
   ; symbol
   (define (evaluate-symbol tree env)

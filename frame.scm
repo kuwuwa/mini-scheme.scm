@@ -15,10 +15,10 @@
              (frame (set! alist (cons (cons symbol value) alist))
                     outer-frame)))
           ((eq? cmd 'replace!)
-           (lambda (name value)
+           (lambda (symbol value)
              (let ((pair (assoc name alist)))
                (cond (pair (begin
-                             (set! alist (cons (cons name value) alist))
+                             (set! alist (cons (cons symbol value) alist))
                              (v/t 'undef "value replaced successfully")))
                      ((null? outer-frame)
                       (v/t 'error (string-append "variable `" name "' not found")))

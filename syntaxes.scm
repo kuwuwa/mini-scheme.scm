@@ -54,7 +54,7 @@
           (value (evaluate (cadr args) env)))
       (if (value 'error?)
         value
-        (let ((rc (env 'replace! name value)))
+        (let ((rc ((env 'replace!) name value)))
           (if (rc 'error?)
             rc
             value))))))
