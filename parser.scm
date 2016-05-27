@@ -23,12 +23,17 @@
 
   (define (parse-bool code _ind)
     (let ((ind (skip-delimiter code _ind)))
-      (and (< ind (- (string-length code) 1))
+      (and (< ind (string-length code))
            (equal? #\# (string-ref code ind))
-           (let ((ch (string-ref code (+ ind 1))))
-             (cond ((equal? ch #\t) (cons (v/t 'bool #t) (+ ind 2)))
-                   ((equal? ch #\f) (cons (v/t 'bool #f) (+ ind 2)))
-                   (else (cons (v/t 'error "invalid syntax") ())))))))
+           (if (or (>= ind (- (string-length code) 1))
+                   (and (< ind (- (string-length code) 2))
+                        (not (memq (string-ref code (+ ind 2))
+                                   (string->list " \n()'")))))
+             invalid-syntax
+             (let ((ch (string-ref code (+ ind 1))))
+               (cond ((equal? ch #\t) (cons (v/t 'bool #t) (+ ind 2)))
+                     ((equal? ch #\f) (cons (v/t 'bool #f) (+ ind 2)))
+                     (else (cons (v/t 'error "invalid syntax") ()))))))))
 
   (define (parse-number code _ind)
     (define (scan ind)
