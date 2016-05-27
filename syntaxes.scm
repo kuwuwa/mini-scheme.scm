@@ -100,7 +100,15 @@
         (evaluate-body (cdr args) new-env)))))
 
 
-(define (syntax-letrec args env))
+(define (syntax-letrec args env)
+  (define err-malformed (v/t 'error "malformed let"))
+
+  (if (< (length args) 2) err-malformed
+    (let* ((new-env (frame '() env))
+           (bindings (evaluate-bindings-rec (car args) env)))
+      (if (bindings 'error?)
+        bindings
+        (evaluate-body (cdr args) new-env)))))
 
 
 (define (syntax-if args env)
@@ -146,6 +154,7 @@
                       (if (rest 'error?)
                         rest
                         (v/t 'bindings (cons binding (rest 'value))))))))))))
+
   (loop (tree 'value)))
 
 
@@ -174,6 +183,34 @@
 
   (loop (tree 'value)))
 
+
+(define (evaluate-bindings-rec tree env)
+  (define (loop bindings)
+    (define invalid-syntax (v/t 'error "invalid syntax"))
+
+    (if (null? bindings)
+      (v/t 'bindings '())
+      (let ((cell (car bindings)))
+        (if (or (not (eq? (cell 'type) 'list))
+                (not (= (length (cell 'value)) 2)))
+          invalid-syntax
+          (let ((label (car (cell 'value))))
+            (if (not (eq? 'symbol (label 'type)))
+              invalid-syntax
+              (begin
+                ((env 'push!) (label 'value) (v/t 'error "circular reference"))
+                (let ((value (evaluate (cadr (cell 'value)) env)))
+                  (if (value 'error?)
+                    value
+                    (let ((binding (cons (label 'value) value))
+                          (rest (loop (cdr bindings))))
+                      (if (rest 'error?)
+                        rest
+                        (begin
+                          ((env 'push!) (label 'value) value)
+                          (v/t 'bindings (cons binding (rest 'value)))))))))))))))
+
+  (loop (tree 'value)))
 
 
 (define (new-closure symbols body callee-env)

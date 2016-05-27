@@ -1,5 +1,4 @@
 ; evaluator.scm
-; (load "./state.scm")
 (load "./result.scm")
 
 
