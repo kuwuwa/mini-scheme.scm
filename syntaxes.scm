@@ -119,7 +119,27 @@
             ((condition 'value) (evaluate (cadr args) env))
             (else (evaluate (caddr args) env))))))
 
-(define (syntax-cond args env))
+
+(define (syntax-cond args _env)
+  (define (check-cond args)
+    (if (null? args) (v/t 'ok "valid cond form")
+      (let ((cell (car args)))
+        (if (or (not (eq? 'list (cell 'type)))
+                (not (= 2 (length (cell 'value)))))
+          (v/t 'error "malformed cond")
+          (check-cond (cdr args))))))
+
+  (define (loop args env)
+    (if (null? args) (v/t 'undef '())
+      (let ((condition (evaluate (car ((car args) 'value)) env)))
+        (cond ((condition 'error?) condition)
+              ((condition 'value) (evaluate (cadr ((car args) 'value)) env))
+              (else (loop (cdr args) env))))))
+
+  (if ((check-cond args) 'error?)
+    check-cond
+    (loop args _env)))
+
 
 (define (syntax-else args env)
   (v/t 'error "invalid syntax"))
@@ -133,6 +153,7 @@
 (define (syntax-do args env))
 
 ; utils
+
 
 (define (evaluate-bindings tree env)
   (define (loop bindings)
