@@ -3,6 +3,63 @@
 (load "./frame.scm")
 (load "./result.scm")
 
+
+; Define ::= (define Id Exp)
+;     | (define (Id Id* [. Id]) Body)
+
+
+(define (syntax-define args env)
+  (define err-malformed (v/t 'error "malformed define"))
+
+  (if (< (length args) 1)
+    err-malformed
+    (let ((symbol (car args)))
+      (cond ((and (eq? 'symbol (symbol 'type))
+                  (= (length args) 2))
+               (syntax-define-value args env))
+            ((eq? 'list (symbol 'type)) (syntax-define-closure args env))
+            (else err-malformed)))))
+
+
+(define (syntax-define-value args env)
+  (define err-malformed (v/t 'error "malformed define"))
+
+  (if (< (length args) 2)
+    err-malformed
+    (let* ((_symbol (car args)))
+      (if (not (eq? 'symbol (_symbol 'type)))
+        err-malformed
+        (let* ((symbol (_symbol 'value))
+               (value (evaluate (cadr args) env)))
+          (if (value 'error?)
+            value
+            (begin
+              ((env 'push!) symbol value)
+              _symbol)))))))
+
+
+(define (syntax-define-closure args env)
+  (define err-malformed (v/t 'error "malformed define"))
+  (define invalid-syntax (v/t 'error "invalid syntax"))
+
+  (let ((lst ((car args) 'value)))
+    (if (< (length lst) 1)
+      err-malformed
+      (let ((closure-symbol (car lst))
+            (params (cdr lst)))
+        (if (and (eq? 'symbol (closure-symbol 'type))
+                 (check-all (lambda (t) (eq? 'symbol (t 'type))) params))
+          (let ((clos (new-closure (map (lambda (p) (p 'value)) params)
+                                   (cdr args)
+                                   env)))
+            (if (clos 'error?)
+              clos
+              (begin
+                ((env 'push!) (closure-symbol 'value) clos)
+                closure-symbol)))
+          invalid-syntax)))))
+
+
 ; Exp ::= Const                                   定数
 ;       | Id                                      変数
 ;       | (lambda Arg Body)                       λ 抽象
