@@ -144,13 +144,119 @@
 (define (syntax-else args env)
   (v/t 'error "invalid syntax"))
 
-(define (syntax-and args env))
 
-(define (syntax-or args env))
+(define (syntax-and args env)
+  (define (loop args ret)
+    (if (null? args)
+      ret
+      (let ((val (evaluate (car args) env)))
+        (cond ((val 'error?) bool)
+              ((not (val 'value)) (v/t 'bool #f))
+              (else (loop (cdr args) val))))))
 
-(define (syntax-begin args env))
+  (loop args (v/t 'bool #t)))
 
-(define (syntax-do args env))
+
+(define (syntax-or args env)
+  (define (loop args ret)
+    (if (null? args)
+      ret
+      (let ((val (evaluate (car args) env)))
+        (cond ((val 'error?) val)
+              ((val 'value) val)
+              (else (loop (cdr args) val))))))
+
+  (loop args (v/t 'bool #f)))
+
+
+(define (syntax-begin args env)
+  (define (loop args ret)
+    (if (null? args)
+      ret
+      (let ((val (evaluate (car args) env)))
+        (if (val 'error?)
+          val
+          (loop (cdr args) val)))))
+
+  (loop args (v/t 'undef ())))
+
+
+(define (syntax-do args env)
+  (define err-malformed (v/t 'error "malformed do"))
+  (define ok (v/t 'ok "OK"))
+
+  (define (check-do args)
+    (define (check-vars _vars)
+      (define err-malformed (v/t 'error "malformed do"))
+      (define (loop vars)
+        (if (null? vars)
+          (v/t 'ok "OK")
+          (let ((var (car vars)))
+            (if (or (not (eq? 'list (var 'type)))
+                    (not (= 3 (length (var 'value)))))
+              err-malformed
+              (let ((label (car (var 'value))))
+                (if (or (not (eq? 'symbol (label 'type))))
+                  err-malformed
+                  (loop (cdr vars))))))))
+
+      (if (eq? 'list (_vars 'type))
+        (loop (_vars 'value))))
+
+    (define (check-return ret)
+      (cond ((not (eq? 'list (ret 'type))) err-malformed)
+            ((< (length (ret 'value)) 1) err-malformed)
+            (else (let ((body-status (check-body (cdr (ret 'value)))))
+                    (if (body-status 'error?)
+                      err-malformed
+                      ok)))))
+
+    (if (< (length args) 2)
+      err-malformed
+      (let* ((vars (car args))
+             (return (cadr args))
+             (vars-status (check-vars vars))
+             (return-status (check-return return)))
+        (cond ((vars-status 'error?) vars-status)
+              ((return-status 'error?) return-status)
+              (else ok)))))
+
+  (let ((check-result (check-do args)))
+    (if (check-result 'error?)
+      err-malformed
+      (let* ((vars ((car args) 'value))
+             (symbols (map (lambda (b) (car (b 'value))) vars))
+             (bindings (let ((thunks (map (lambda (b) (cadr (b 'value))) vars)))
+                         ; TODO: fix me
+                         (evaluate-bindings (v/t 'bindings
+                                                 (map (lambda (b) (v/t 'list b))
+                                                      (map list symbols thunks)))
+                                            env)))
+             (steps (map (lambda (b) (caddr (b 'value))) vars))
+             ;
+             (ret ((cadr args) 'value))
+             (end-test (car ret))
+             (return-body (cdr ret))
+             (body (cddr args))
+             (local-env (frame (bindings 'value) env)))
+        (if (bindings 'error?)
+          bindings
+          (let loop ()
+            (let ((test-result (evaluate end-test local-env)))
+              (cond ((test-result 'error?) test-result)
+                    ((test-result 'value) (evaluate-body return-body local-env))
+                    (else
+                      (let ((new-bindings (evaluate-bindings
+                                            (v/t 'list (map (lambda (b) (v/t 'list b))
+                                                            (map list symbols steps)))
+                                            local-env))
+                            (replacer (lambda (binding)
+                                        (let ((symbol (car binding))
+                                              (value  (cdr binding)))
+                                          ((local-env 'replace!) symbol value)))))
+                        (map replacer (new-bindings 'value))
+                        (loop)))))))))))
+
 
 ; utils
 
