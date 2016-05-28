@@ -1,6 +1,5 @@
 ; parser.scm
 
-
 (define (skip-delimiter code ind)
   ; return the index of the leftmost delimiter(space, newline)
   ; in the right side of `ind`-th character in `str`
@@ -14,12 +13,23 @@
   ; return: (a result of parsing the first expr . end index of the expr)
   ;         if the given expression is invalid, the end index is empty.
 
+  (define invalid-syntax (cons (v/t 'error "invalid syntax") ()))
+
   ; (define (parse-char code _ind)
   ;   (and (< ind (- (string-length code) 3))
   ;        (equal? #\# (string-ref code ind))
   ;        (equal? #\\ (string-ref code (+ ind 1)))
   ;        (let ((ch (string-copy code (+ ind 2) (+ ind 3))))
   ;          (cons (v/t 'char ch) (+ ind 3)))))
+
+  (define (parse-dot code _ind)
+    (let ((ind (skip-delimiter code _ind)))
+      (and (< ind (string-length code))
+           (equal? #\. (string-ref code ind))
+           (if (or (>= ind (- (string-length code) 1))
+                   (memq (string-ref code (+ ind 1)) (string->list " \n()'")))
+             (cons (v/t 'dot ".") (+ ind 1))
+             invalid-syntax))))
 
   (define (parse-bool code _ind)
     (let ((ind (skip-delimiter code _ind)))
@@ -115,15 +125,30 @@
                 (let* ((result (parse-term code ind))
                        (term (car result))
                        (next-ind (cdr result)))
-                  (if (term 'error?)
-                    result
-                    (let* ((rest (parse-terms code next-ind))
-                           (terms (car rest))
-                           (last-ind (cdr rest)))
-                      (if (terms 'error?)
-                        rest
-                        (cons (v/t 'list (cons term (terms 'value)))
-                              last-ind)))))))))
+                  (cond ((term 'error?) result)
+                        ((eq? 'dot (term 'type))
+                          (let* ((last (parse-term code next-ind))
+                                 (last-term (car last))
+                                 (last-ind (cdr last)))
+                            (if (last-term 'error?)
+                              last-term
+                              (let ((ret-ind (skip-delimiter code last-ind)))
+                                (if (or (>= ret-ind (string-length code))
+                                        (equal? #\) (string-ref code ret-ind)))
+                                  (cons last-term (+ 1 ret-ind))
+                                  (cons (v/t 'error "bad dot syntax")
+                                        ()))))))
+                        (else
+                          (let* ((rest (parse-terms code next-ind))
+                                 (terms (car rest))
+                                 (last-ind (cdr rest)))
+                            (cond ((terms 'error?) rest)
+                                  ((memq (terms 'type) '(list empty))
+                                    (cons (v/t 'list (cons term (terms 'value)))
+                                          last-ind))
+                                  (else
+                                    (cons (v/t 'list (cons term terms))
+                                          last-ind)))))))))))
 
 
     (let ((index (skip-delimiter code _index)))
@@ -145,6 +170,7 @@
         #f)))
 
   (or 
+      (parse-dot code ind)
       (parse-bool code ind)
       (parse-number code ind)
       (parse-symbol code ind)

@@ -43,21 +43,17 @@
   (define invalid-syntax (v/t 'error "invalid syntax"))
 
   (let ((lst ((car args) 'value)))
-    (if (< (length lst) 1)
+    (if (not (pair? lst))
       err-malformed
-      (let ((closure-symbol (car lst))
-            (params (cdr lst)))
-        (if (and (eq? 'symbol (closure-symbol 'type))
-                 (check-all (lambda (t) (eq? 'symbol (t 'type))) params))
-          (let ((clos (new-closure (map (lambda (p) (p 'value)) params)
-                                   (cdr args)
-                                   env)))
-            (if (clos 'error?)
-              clos
-              (begin
-                ((env 'push!) (closure-symbol 'value) clos)
-                closure-symbol)))
-          invalid-syntax)))))
+      (let* ((closure-symbol (car lst))
+             (params (cdr lst))
+             (body (cdr args))
+             (clos (new-closure params body env)))
+        (if (clos 'error?)
+          clos
+          (begin
+            ((env 'push!) (closure-symbol 'value) clos)
+            closure-symbol))))))
 
 
 ; Exp ::= Const                                   定数
@@ -82,14 +78,8 @@
 
   (if (< (length args) 1)
     err-malformed
-    (let* ((arg0 (car args)))
-      (if (or (not (memq (arg0 'type) '(list empty)))
-              (not (check-all (lambda (t) (eq? 'symbol (t 'type)))
-                              (arg0 'value))))
-        err-malformed
-        (let* ((symbols (map (lambda (p) (p 'value)) (arg0 'value)))
-               (closure (new-closure symbols (cdr args) env)))
-          closure)))))
+    (let ((symbols ((car args) 'value)))
+      (new-closure symbols (cdr args) env))))
 
 
 (define (syntax-quote args env)
@@ -217,7 +207,8 @@
 
 
 (define (syntax-if args env)
-  (if (not (eq? 3 (length args)))
+  (if (or (not (list? args))
+          (not (eq? 3 (length args))))
     (v/t 'error "malformed if")
     (let ((condition (evaluate (car args) env)))
       (cond ((condition 'error?) condition)
@@ -226,13 +217,16 @@
 
 
 (define (syntax-cond args _env)
-  (define (check-cond args)
-    (if (null? args) (v/t 'ok "valid cond form")
-      (let ((cell (car args)))
-        (if (or (not (eq? 'list (cell 'type)))
-                (not (= 2 (length (cell 'value)))))
-          (v/t 'error "malformed cond")
-          (check-cond (cdr args))))))
+  (define (check-cond _args)
+    (if (null? _args)
+      (v/t 'error "syntax-error")
+      (let loop ((args _args))
+        (if (null? args) (v/t 'ok "valid cond form")
+          (let ((cell (car args)))
+            (if (or (not (eq? 'list (cell 'type)))
+                    (not (= 2 (length (cell 'value)))))
+              (v/t 'error "malformed cond")
+              (loop (cdr args))))))))
 
   (define (loop args env)
     (if (null? args) (v/t 'undef '())
@@ -399,14 +393,36 @@
                     (else
                       (v/t 'args (cons result (rest 'value)))))))))))
 
+  (define (get-bindings symbols args)
+    (cond ((and (null? symbols) (null? args)) (v/t 'empty '()))
+          ((null? symbols) (v/t 'error "wrong number of arguments"))
+          ((not (pair? symbols))
+            (if (eq? 'symbol (symbols 'type))
+              (v/t 'bindings (cons (cons (symbols 'value) (v/t 'list args)) '()))
+              (v/t 'error "invalid syntax")))
+          ((null? args) (v/t 'error "wrong number of arguments"))
+          (else
+            (let ((symbol (car symbols)))
+              (if (not (eq? 'symbol (symbol 'type)))
+                (v/t 'error "invalid syntax")
+                (let ((rest (get-bindings (cdr symbols) (cdr args))))
+                  (cond ((rest 'error?) rest)
+                        ((eq? 'empty (rest 'type))
+                          (v/t 'bindings (cons (cons (symbol 'value) (car args))
+                                               '())))
+                        (else
+                          (v/t 'bindings (cons (cons (symbol 'value) (car args))
+                                               (rest 'value)))))))))))
+
   (define closure (lambda (_args caller-env)
-    (if (not (equal? (length symbols) (length _args)))
-      (v/t 'error "wrong number of arguments")
-      (let ((args (evaluate-args _args caller-env)))
-        (if (args 'error?)
-          args
-          (let* ((new-env (frame (map cons symbols (args 'value)) callee-env)))
-            (evaluate-body body new-env)))))))
+    (let ((args (evaluate-args _args caller-env)))
+      (if (args 'error?)
+        args
+        (let ((bindings (get-bindings symbols (args 'value))))
+          (if (bindings 'error?)
+            bindings
+            (let ((new-env (frame (bindings 'value) callee-env)))
+              (evaluate-body body new-env))))))))
 
   (let ((check-result (check-body body)))
     (if (check-result 'error?)
