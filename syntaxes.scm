@@ -148,6 +148,28 @@
 
 (define (syntax-let* args env)
   (define err-malformed (v/t 'error "malformed let"))
+  (define invalid-syntax (v/t 'error "invalid syntax"))
+
+  (define (evaluate-bindings* tree env)
+    (let loop ((bindings (tree 'value)))
+      (if (null? bindings)
+        (v/t 'bindings '())
+        (let ((cell (car bindings)))
+          (if (or (not (eq? (cell 'type) 'list))
+                  (not (= (length (cell 'value)) 2)))
+            invalid-syntax
+            (let ((label (car (cell 'value)))
+                  (value (evaluate (cadr (cell 'value)) env)))
+              (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
+                    ((value 'error?) value)
+                    (else (begin
+                            ((env 'push!) (label 'value) value)
+                            (let ((binding (cons (label 'value) value))
+                                  (rest (loop (cdr bindings))))
+                              (if (rest 'error?)
+                                rest
+                                (v/t 'bindings
+                                     (cons binding (rest 'value))))))))))))))
 
   (if (< (length args) 2) err-malformed
     (let* ((new-env (frame '() env))
@@ -159,6 +181,32 @@
 
 (define (syntax-letrec args env)
   (define err-malformed (v/t 'error "malformed let"))
+
+  (define (evaluate-bindings-rec tree env)
+    (let loop ((bindings (tree 'value)))
+      (define invalid-syntax (v/t 'error "invalid syntax"))
+
+      (if (null? bindings)
+        (v/t 'bindings '())
+        (let ((cell (car bindings)))
+          (if (or (not (eq? (cell 'type) 'list))
+                  (not (= (length (cell 'value)) 2)))
+            invalid-syntax
+            (let ((label (car (cell 'value))))
+              (if (not (eq? 'symbol (label 'type)))
+                invalid-syntax
+                (begin
+                  ((env 'push!) (label 'value) (v/t 'error "circular reference"))
+                  (let ((value (evaluate (cadr (cell 'value)) env)))
+                    (if (value 'error?)
+                      value
+                      (let ((binding (cons (label 'value) value))
+                            (rest (loop (cdr bindings))))
+                        (if (rest 'error?)
+                          rest
+                          (begin
+                            ((env 'push!) (label 'value) value)
+                            (v/t 'bindings (cons binding (rest 'value))))))))))))))))
 
   (if (< (length args) 2) err-malformed
     (let* ((new-env (frame '() env))
@@ -202,40 +250,37 @@
   (v/t 'error "invalid syntax"))
 
 
-(define (syntax-and args env)
-  (define (loop args ret)
+(define (syntax-and _args env)
+  (let loop ((args _args)
+             (ret (v/t 'bool #t)))
     (if (null? args)
       ret
       (let ((val (evaluate (car args) env)))
         (cond ((val 'error?) bool)
               ((not (val 'value)) (v/t 'bool #f))
-              (else (loop (cdr args) val))))))
-
-  (loop args (v/t 'bool #t)))
+              (else (loop (cdr args) val)))))))
 
 
-(define (syntax-or args env)
-  (define (loop args ret)
+(define (syntax-or _args env)
+  (let loop ((args _args)
+             (ret (v/t 'bool #f)))
     (if (null? args)
       ret
       (let ((val (evaluate (car args) env)))
         (cond ((val 'error?) val)
               ((val 'value) val)
-              (else (loop (cdr args) val))))))
-
-  (loop args (v/t 'bool #f)))
+              (else (loop (cdr args) val)))))))
 
 
-(define (syntax-begin args env)
-  (define (loop args ret)
+(define (syntax-begin _args env)
+  (let loop ((args _args)
+             (ret (v/t 'undef '())))
     (if (null? args)
       ret
       (let ((val (evaluate (car args) env)))
         (if (val 'error?)
           val
-          (loop (cdr args) val)))))
-
-  (loop args (v/t 'undef ())))
+          (loop (cdr args) val))))))
 
 
 (define (syntax-do args env)
@@ -284,7 +329,6 @@
       (let* ((vars ((car args) 'value))
              (symbols (map (lambda (b) (car (b 'value))) vars))
              (bindings (let ((thunks (map (lambda (b) (cadr (b 'value))) vars)))
-                         ; TODO: fix me
                          (evaluate-bindings (v/t 'bindings
                                                  (map (lambda (b) (v/t 'list b))
                                                       (map list symbols thunks)))
@@ -319,7 +363,7 @@
 
 
 (define (evaluate-bindings tree env)
-  (define (loop bindings)
+  (let loop ((bindings (tree 'value)))
     (define invalid-syntax (v/t 'error "invalid syntax"))
 
     (if (null? bindings)
@@ -337,69 +381,12 @@
                           (rest (loop (cdr bindings))))
                       (if (rest 'error?)
                         rest
-                        (v/t 'bindings (cons binding (rest 'value))))))))))))
-
-  (loop (tree 'value)))
-
-
-(define (evaluate-bindings* tree env)
-  (define (loop bindings)
-    (define invalid-syntax (v/t 'error "invalid syntax"))
-
-    (if (null? bindings)
-      (v/t 'bindings '())
-      (let ((cell (car bindings)))
-        (if (or (not (eq? (cell 'type) 'list))
-                (not (= (length (cell 'value)) 2)))
-          invalid-syntax
-          (let ((label (car (cell 'value)))
-                (value (evaluate (cadr (cell 'value)) env)))
-            (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
-                  ((value 'error?) value)
-                  (else (begin
-                    ((env 'push!) (label 'value) value)
-                    (let ((binding (cons (label 'value) value))
-                          (rest (loop (cdr bindings))))
-                      (if (rest 'error?)
-                        rest
-                        (v/t 'bindings
-                             (cons binding (rest 'value)))))))))))))
-
-  (loop (tree 'value)))
-
-
-(define (evaluate-bindings-rec tree env)
-  (define (loop bindings)
-    (define invalid-syntax (v/t 'error "invalid syntax"))
-
-    (if (null? bindings)
-      (v/t 'bindings '())
-      (let ((cell (car bindings)))
-        (if (or (not (eq? (cell 'type) 'list))
-                (not (= (length (cell 'value)) 2)))
-          invalid-syntax
-          (let ((label (car (cell 'value))))
-            (if (not (eq? 'symbol (label 'type)))
-              invalid-syntax
-              (begin
-                ((env 'push!) (label 'value) (v/t 'error "circular reference"))
-                (let ((value (evaluate (cadr (cell 'value)) env)))
-                  (if (value 'error?)
-                    value
-                    (let ((binding (cons (label 'value) value))
-                          (rest (loop (cdr bindings))))
-                      (if (rest 'error?)
-                        rest
-                        (begin
-                          ((env 'push!) (label 'value) value)
-                          (v/t 'bindings (cons binding (rest 'value)))))))))))))))
-
-  (loop (tree 'value)))
+                        (v/t 'bindings (cons binding (rest 'value)))))))))))))
 
 
 (define (new-closure symbols body callee-env)
-  (define (evaluate-args args env)
-    (define (loop args)
+  (define (evaluate-args _args env)
+    (let loop ((args _args))
       (if (null? args)
         (v/t 'empty '())
         (let ((result (evaluate (car args) env)))
@@ -410,9 +397,7 @@
                     ((eq? 'empty (rest 'type))
                      (v/t 'args (cons result '())))
                     (else
-                      (v/t 'args (cons result (rest 'value))))))))))
-
-    (loop args))
+                      (v/t 'args (cons result (rest 'value)))))))))))
 
   (define closure (lambda (_args caller-env)
     (if (not (equal? (length symbols) (length _args)))
@@ -429,8 +414,9 @@
       (v/t 'closure closure))))
 
 
-(define (evaluate-body body env)
-  (define (loop body return-value)
+(define (evaluate-body _body env)
+  (let loop ((body _body)
+             (return-value (v/t 'undef '())))
     (if (null? body)
       return-value
       (let* ((term (car body))
@@ -438,9 +424,7 @@
              (next-value (evaluate term env)))
         (if (next-value 'error?)
           next-value
-          (loop rest next-value)))))
-
-  (loop body (v/t 'undef '())))
+          (loop rest next-value))))))
 
 
 (define (check-all pred lst)
@@ -449,8 +433,9 @@
            (check-all pred (cdr lst)))))
 
 
-(define (check-body body)
-  (define (loop body prev-type)
+(define (check-body _body)
+  (let loop ((body _body)
+             (prev-type 'define))
     (if (null? body)
       (if (eq? prev-type 'define)
         (v/t 'error "invalid body form")
@@ -459,6 +444,4 @@
              (rest (cdr body)))
         (if (and (not (eq? prev-type 'define)) (eq? (term 'type) 'define))
           (v/t 'error "invalid body form")
-          (loop rest (term 'type))))))
-
-  (loop body 'define))
+          (loop rest (term 'type)))))))
