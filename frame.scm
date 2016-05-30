@@ -8,7 +8,9 @@
              (let ((pair (assoc name alist)))
                (cond (pair (cdr pair))
                      ((null? outer-frame)
-                      (v/t 'error (string-append "variable `" name "' not found")))
+                      (v/t 'error (string-append "variable `"
+                                                 (symbol->string name)
+                                                 "' not found")))
                      (else ((outer-frame 'find) name))))))
           ((eq? cmd 'push!)
            (lambda (symbol value)

@@ -25,20 +25,9 @@
 
   ; number
   (define (evaluate-number tree env)
-    (define (string->integer str)
-      (define (scan ind acc)
-        (if (>= ind (string-length str))
-          acc
-          (scan (+ ind 1)
-                (+ (* 10 acc)
-                   (- (char->integer (string-ref str ind)) 48)))))
-
-      (scan 0 0))
-
     (and
       (eq? (tree 'type) 'number)
-      (let ((val (string->integer (tree 'value))))
-        (v/t 'number val))))
+      tree))
 
   ; string
   (define (evaluate-string tree env)

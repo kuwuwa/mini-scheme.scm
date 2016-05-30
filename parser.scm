@@ -46,6 +46,14 @@
                      (else (cons (v/t 'error "invalid syntax") ()))))))))
 
   (define (parse-number code _ind)
+    (define (string->integer str)
+      (let loop ((ind 0) (acc 0))
+        (if (>= ind (string-length str))
+          acc
+          (loop (+ ind 1)
+                (+ (* 10 acc)
+                   (- (char->integer (string-ref str ind)) 48))))))
+
     (define (scan ind)
       (if (>= ind (string-length code))
         ind
@@ -59,7 +67,8 @@
         (char-numeric? (string-ref code ind))
         (let ((end-ind (scan ind)))
           (if end-ind
-            (cons (v/t 'number (string-copy code ind end-ind)) end-ind)
+            (cons (v/t 'number (string->integer (string-copy code ind end-ind)))
+                  end-ind)
             (cons (v/t 'error "invalid identifier name") '()))))))
 
   (define (parse-symbol code _ind)
@@ -84,7 +93,7 @@
             (char-alphabetic?  ch)
             (member ch (string->list "!$%&*+-./<=>?@^_")))
         (let ((end-index (end-of-symbol code ind)))
-          (cons (v/t 'symbol (string-copy code ind end-index))
+          (cons (v/t 'symbol (string->symbol (string-copy code ind end-index)))
                 end-index))
         #f)))
 
