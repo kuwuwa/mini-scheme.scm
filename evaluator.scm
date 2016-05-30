@@ -48,12 +48,30 @@
       (tree 'value)))
 
   ; expr
-  (define (evaluate-expr tree env)
+  (define (evaluate-expr tree  env)
+    (define (evaluate-args _args env)
+      (let loop ((args _args))
+        (if (null? args)
+          (v/t 'empty '())
+          (let ((result (evaluate (car args) env)))
+            (if (result 'error?)
+              result
+              (let ((rest (loop (cdr args))))
+                (cond ((rest 'error?) rest)
+                      ((eq? 'empty (rest 'type))
+                       (v/t 'args (cons result '())))
+                      (else
+                        (v/t 'args (cons result (rest 'value)))))))))))
+
     (define (execute-proc proc-t args env)
       (let* ((proc (evaluate proc-t env)))
         (cond ((proc 'error?) proc)
               ((eq? 'syntax (proc 'type))  ((proc 'value) args env))
-              ((eq? 'closure (proc 'type)) ((proc 'value) args env))
+              ((eq? 'closure (proc 'type))
+                  (let ((vals (evaluate-args args env)))
+                    (if (vals 'error?)
+                      vals
+                      ((proc 'value) (vals 'value) env))))
               (else (v/t 'error "invalid application")))))
 
     ; (let ((po
