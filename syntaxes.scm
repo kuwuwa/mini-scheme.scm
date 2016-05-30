@@ -353,8 +353,36 @@
                         (loop)))))))))))
 
 
-; utils
+; macro
 
+
+(define (syntax-define-macro _args callee-env)
+  (define (new-macro params expr)
+    (define (macro args caller-env)
+      (if (not (eq? (length params) (length args)))
+        (v/t 'error "wrong number of arguments")
+        (let* ((bindings (map cons params args))
+               (new-env (frame bindings callee-env))
+               (new-expr (evaluate expr new-env)))
+          (if (new-expr 'error?)
+            new-expr
+            (evaluate new-expr caller-env)))))
+    (v/t 'syntax macro))
+
+  (cond ((not (= (length _args) 2)) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'list ((car _args) 'type))) (v/t 'error "malformed define-macro"))
+        ((not (check-all (lambda (a) (eq? 'symbol (a 'type))) ((car _args) 'value)))
+            (v/t 'error "symbols required"))
+        (else
+          (let* ((symbols (map (lambda (a) (a 'value)) ((car _args) 'value)))
+                 (macro-name (car symbols))
+                 (params (cdr symbols))
+                 (expr (cadr _args)))
+            ((callee-env 'push!) macro-name (new-macro params expr))
+            (v/t 'symbol macro-name)))))
+
+
+; utils
 
 (define (evaluate-bindings tree env)
   (let loop ((bindings (tree 'value)))
