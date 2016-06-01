@@ -247,6 +247,7 @@
     (v/t 'error "wrong number of arguments")
     (v/t 'bool (procedure? ((car args) 'value)))))
  
+
 ; 比較
 ; eq?, neq?, equal?
 
@@ -268,5 +269,20 @@
     (v/t 'error "wrong number of arguments")
     (v/t 'bool (equal? ((car args) 'value) ((cadr args) 'value)))))
 
+
+; call/cc
+
+(define (subr.call/cc args env)
+  (call/cc (lambda (cont)
+    (define (continuation args env)
+      (if (not (= 1 (length args)))
+        (v/t 'error "wrong number of arguments")
+        (cont (car args))))
+
+    (if (not (= 1 (length args)))
+      (v/t 'error "wrong number of arguments")
+      (let ((proc (car args)))
+        (evaluate (v/t 'list (list (v/t 'quote proc) (v/t 'quote (v/t 'quote (v/t 'closure continuation)))))
+                  env))))))
 
 ; TODO: implement load
