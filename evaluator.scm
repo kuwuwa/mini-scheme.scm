@@ -48,7 +48,7 @@
       (tree 'value)))
 
   ; expr
-  (define (evaluate-expr tree  env)
+  (define (evaluate-list tree  env)
     (define (evaluate-args _args env)
       (let loop ((args _args))
         (if (null? args)
@@ -91,5 +91,5 @@
     (evaluate-string tree env)
     (evaluate-symbol tree env)
     (evaluate-quote tree env)
-    (evaluate-expr tree env)
+    (evaluate-list tree env)
     (v/t 'error "undefined")))
