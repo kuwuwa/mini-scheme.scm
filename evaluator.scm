@@ -86,6 +86,7 @@
   (or 
     (evaluate-empty tree env)
     (evaluate-bool tree env)
+    (evaluate-char tree env)
     (evaluate-number tree env)
     (evaluate-string tree env)
     (evaluate-symbol tree env)

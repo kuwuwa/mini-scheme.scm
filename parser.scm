@@ -1,27 +1,48 @@
 ; parser.scm
 
+(define (delimiter? ch) (memq ch '(#\  #\newline)))
+
+
 (define (skip-delimiter code ind)
   ; return the index of the leftmost delimiter(space, newline)
   ; in the right side of `ind`-th character in `str`
   (cond ((>= ind (string-length code)) ind)
-        ((memq (string-ref code ind) '(#\  #\newline))
-            (skip-delimiter code (+ ind 1)))
+        ((delimiter? (string-ref code ind)) (skip-delimiter code (+ ind 1)))
         (else ind)))
 
-(define (parse-term code ind)
+
+(define (parse-term code _ind)
   ; parameter: scheme expressions
   ; return: (a result of parsing the first expr . end index of the expr)
   ;         if the given expression is invalid, the end index is empty.
 
   (define invalid-syntax (cons (v/t 'error "invalid syntax") ()))
 
-  ; (define (parse-char code _ind)
-  ;   (and (< ind (- (string-length code) 3))
-  ;        (equal? #\# (string-ref code ind))
-  ;        (equal? #\\ (string-ref code (+ ind 1)))
-  ;        (let ((ch (string-copy code (+ ind 2) (+ ind 3))))
-  ;          (cons (v/t 'char ch) (+ ind 3)))))
+  (define (parse-char code _ind)
+    (define (end-of-symbol code ind)
+      ; parameter: the index of the first character in an identifier in string
+      ; return: the end index of the id
+      (define (char-symbol? ch)
+        (or (char-alphabetic? ch)
+            (char-numeric? ch)
+            (member ch (string->list "!$%&*+-./<=>?@^_"))))
 
+      (if (>= ind (string-length code))
+        ind
+        (let ((ch (string-ref code ind)))
+          (if (char-symbol? ch) (end-of-symbol code (+ ind 1)) ind))))
+
+    (let ((ind (skip-delimiter code _ind)))
+      (and (< ind (- (string-length code) 2))
+           (equal? #\# (string-ref code ind))
+           (equal? #\\ (string-ref code (+ ind 1)))
+           (let* ((end (end-of-symbol code (+ ind 3)))
+                  (label (string-copy code (+ ind 2) end)))
+             (cond ((= 1 (string-length label)) (cons (v/t 'char (car (string->list label)))
+                                               end))
+                   ((equal? label "newline") (cons (v/t 'char #\newline) end))
+                   (else (cons (v/t 'error "unknown character name") ())))))))
+    
   (define (parse-dot code _ind)
     (let ((ind (skip-delimiter code _ind)))
       (and (< ind (string-length code))
@@ -69,7 +90,7 @@
           (if end-ind
             (cons (v/t 'number (string->integer (string-copy code ind end-ind)))
                   end-ind)
-            (cons (v/t 'error "invalid identifier name") '()))))))
+            (cons (v/t 'error "invalid identifier name") ()))))))
 
   (define (parse-symbol code _ind)
     ; parameter: (possibly) the index of the first character in a symbol in string
@@ -178,12 +199,17 @@
             (cons (v/t 'quote term) next-ind)))
         #f)))
 
-  (or 
-      (parse-dot code ind)
-      (parse-bool code ind)
-      (parse-number code ind)
-      (parse-symbol code ind)
-      (parse-string code ind)
-      (parse-list code ind)
-      (parse-quote code ind)))
+  (let ((ind (skip-delimiter code _ind)))
+    (if (>= ind (string-length code))
+      (cons (v/t 'none ()) ind)
+      (or
+        (parse-dot code ind)
+        (parse-char code ind)
+        (parse-bool code ind)
+        (parse-number code ind)
+        (parse-symbol code ind)
+        (parse-string code ind)
+        (parse-list code ind)
+        (parse-quote code ind)
+        (cons (v/t 'error "invalid syntax") ())))))
 
