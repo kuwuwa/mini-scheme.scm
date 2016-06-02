@@ -421,6 +421,7 @@
                     (else
                       (v/t 'args (cons result (rest 'value)))))))))))
 
+
   (define (get-bindings symbols args)
     (cond ((and (null? symbols) (null? args)) (v/t 'empty '()))
           ((null? symbols) (v/t 'error "wrong number of arguments"))
@@ -464,11 +465,13 @@
     (if (null? body)
       return-value
       (let* ((term (car body))
-             (rest (cdr body))
-             (next-value (evaluate term env)))
-        (if (next-value 'error?)
-          next-value
-          (loop rest next-value))))))
+             (rest (cdr body)))
+        (if (null? rest)
+          (evaluate term env)
+          (let ((next-value (evaluate term env)))
+            (if (next-value 'error?)
+              next-value
+              (loop rest next-value))))))))
 
 
 (define (check-all pred lst)

@@ -19,7 +19,6 @@
 
 
 (define (subr.+ args env)
-  (display (check-all number? (map (lambda (a) (a 'value)) args)))
   (let ((nums (map (lambda (a) (a 'value)) args)))
     (if (check-all number? nums)
       (v/t 'number (apply + nums))
@@ -282,7 +281,70 @@
     (if (not (= 1 (length args)))
       (v/t 'error "wrong number of arguments")
       (let ((proc (car args)))
-        (evaluate (v/t 'list (list (v/t 'quote proc) (v/t 'quote (v/t 'quote (v/t 'closure continuation)))))
+        (evaluate (v/t 'list
+                       (list (v/t 'quote proc)
+                             (v/t 'quote (v/t 'quote (v/t 'closure continuation)))))
                   env))))))
+
+
+(define (subr.map args env)
+  (define (exec-map proc args-list env)
+    (if (memq () args-list)
+      (v/t 'empty ())
+      (let* ((args (map car args-list))
+             (result (evaluate (v/t 'list (cons (v/t 'quote proc) args)) env)))
+        (if (result 'error?)
+          result 
+          (let ((rest (exec-map proc (map cdr args-list) env)))
+            (cond ((rest 'error?) rest)
+                  ((eq? 'empty (rest 'type)) (v/t 'list (list result)))
+                  (else (v/t 'list (cons result (rest 'value))))))))))
+
+  (if (< (length args) 1)
+    (v/t 'error "wrong number of arguments")
+    (let ((proc (car args))
+          (as (cdr args)))
+      (if (not (check-all (lambda (a) (eq? 'list (a 'type))) as))
+        (v/t 'error "argument lists contained an improper list")
+        (exec-map proc (map (lambda (a) (a 'value)) as) env)))))
+
+
+(define (subr.apply args env)
+  (define (get-args args)
+    (if (null? (cdr args))
+      ((car args) 'value)
+      (cons (car args) (get-args (cdr args)))))
+
+  (cond ((< (length args) 2) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'list ((last args) 'type))) (v/t 'error
+                                                    "improper list not allowed"))
+        (else
+          (let ((proc (car args))
+                (rest (cdr args)))
+            (evaluate (v/t 'list
+                           (cons (v/t 'quote proc)
+                                 (map (lambda (a) (v/t 'quote a)) (get-args rest))))
+                      env)))))
+
+; others
+
+(define (subr.eof-object? args env)
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong nuimber of arguments")
+    (v/t 'bool (eof-object? ((car args) 'value)))))
+
+(define (subr.display args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (begin
+                (display ((car args) 'value))
+                (v/t 'undef ())))))
+
+(define (subr.write args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (begin
+                (write ((car args) 'value))
+                (v/t 'undef ())))))
 
 ; TODO: implement load

@@ -135,11 +135,8 @@
                (equal? #\" (string-ref code ind)))
         (let ((end-index (end-of-string code (+ ind 1))))
           (if (null? end-index)
-            (cons (v/t 'error
-                               "EOT in a string literal")
-                  '())
-            (cons (v/t 'string
-                               (string-copy code (+ ind 1) end-index))
+            (cons (v/t 'error "EOT in a string literal") 'non-eot)
+            (cons (v/t 'string (string-copy code (+ ind 1) end-index))
                   (+ end-index 1))))
         #f)))
 
@@ -149,7 +146,7 @@
     (define (parse-terms code _ind)
       (let ((ind (skip-delimiter code _ind)))
         (cond ((>= ind (string-length code)) (cons (v/t 'error "EOF inside a list")
-                                                   ()))
+                                                   'non-eot))
               ((equal? #\) (string-ref code ind)) (cons (v/t 'empty ()) (+ ind 1)))
               (else
                 (let* ((result (parse-term code ind))
