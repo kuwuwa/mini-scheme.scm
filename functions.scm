@@ -1,6 +1,5 @@
 ; functions.scm
-(load "./result.scm")
-(load "./evaluator.scm")
+
 
 (define (check-all pred lst)
   (or (null? lst)
@@ -122,10 +121,38 @@
         (else (car ((car args) 'value)))))
 
 
+(define (subr.caar args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error "pair required"))
+        (else (car ((car ((car args) 'value)) 'value)))))
+
+
+(define (subr.cadr args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (pair? ((cdr ((car args) 'value)) 'value))) (v/t 'error "pair required"))
+        (else (car ((cdr ((car args) 'value)) 'value)))))
+
+
 (define (subr.cdr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
         (else (v/t 'list (cdr ((car args) 'value))))))
+
+
+(define (subr.cdar args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error "pair required"))
+        (else (cdr ((car ((car args) 'value)) 'value)))))
+
+
+(define (subr.cddr args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (pair? ((cdr ((car args) 'value)) 'value))) (v/t 'error "pair required"))
+        (else (cdr ((cdr ((car args) 'value)) 'value)))))
 
 
 (define (subr.cons args env)
@@ -183,7 +210,7 @@
 (define (subr.boolean? args env)
   (if (not (= 1 (length args)))
     (v/t 'error "wrong number of arguments")
-    (v/t 'bool (eq? 'bool (car args)))))
+    (v/t 'bool (apply boolean? ((car args) 'value)))))
 
 
 (define (subr.not args env)
@@ -200,16 +227,16 @@
 (define (subr.string? args env)
   (if (not (= 1 (length args)))
     (v/t 'error "wrong number of arguments")
-    (v/t 'bool (eq? 'string (car args)))))
+    (v/t 'bool (eq? 'string ((car args) 'type)))))
 
 
 (define (subr.string-append args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (check-all (lambda (a) (eq? 'string (a 'value))) args))
-          (v/t "string is required"))
+  (cond ((< (length args) 1) (v/t 'error "wrong number of arguments"))
+        ((not (check-all (lambda (a) (eq? 'string (a 'type))) args))
+          (v/t 'error "string is required"))
         (else
           (v/t 'string (apply string-append
-                              (map (lambda (a) (a 'value)) ((car args) 'value)))))))
+                              (map (lambda (a) (a 'value)) args))))))
 
 
 (define (subr.symbol->string args env)
@@ -283,7 +310,7 @@
       (let ((proc (car args)))
         (evaluate (v/t 'list
                        (list (v/t 'quote proc)
-                             (v/t 'quote (v/t 'quote (v/t 'closure continuation)))))
+                             (v/t 'quote (v/t 'closure continuation))))
                   env))))))
 
 
@@ -326,12 +353,67 @@
                                  (map (lambda (a) (v/t 'quote a)) (get-args rest))))
                       env)))))
 
+
+(define (subr.string-ref args env)
+  (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
+        ((>= ((cadr args) 'value) (string-length ((car args) 'value)))
+            (v/t 'error "out of range"))
+        (else (v/t 'string (string-ref ((car args) 'value) ((cadr args) 'value))))))
+
+
+(define (subr.string-length args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (string? ((car args) 'value))) (v/t 'error "string required"))
+        (else (v/t 'number (string-length ((car args) 'value))))))
+
+
+(define (subr.char-alphabetic? args env)
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'bool (char-alphabetic? ((car args) 'value)))))
+
+
+(define (subr.char-numeric? args env)
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'bool (char-numeric? ((car args) 'value)))))
+
+
+(define (subr.member args env)
+  (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'list ((cadr args) 'type))) (v/t 'error "list required"))
+        (else
+          (let ((result (member ((car args) 'value) ((cadr args) 'value))))
+            (if (eq? result #f)
+              (v/t 'bool #f)
+              (v/t 'list result))))))
+
+
+(define (subr.string->list args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (v/t 'list (string->list ((car args) 'value))))))
+
+
+(define (subr.string-copy args env)
+  (cond ((not (= 3 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
+        ((not (eq? 'number ((caddr args) 'type))) (v/t 'error "number required"))
+        (else (v/t 'string (apply string-copy
+                                  (map (lambda (a) (a 'value)) args))))))
+
+
 ; others
+
 
 (define (subr.eof-object? args env)
   (if (not (= 1 (length args)))
-    (v/t 'error "wrong nuimber of arguments")
+    (v/t 'error "wrong number of arguments")
     (v/t 'bool (eof-object? ((car args) 'value)))))
+
 
 (define (subr.display args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
@@ -340,6 +422,7 @@
                 (display ((car args) 'value))
                 (v/t 'undef ())))))
 
+
 (define (subr.write args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
@@ -347,4 +430,71 @@
                 (write ((car args) 'value))
                 (v/t 'undef ())))))
 
+
+(define (subr.newline args env)
+  (if (not (= 0 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'undef (newline))))
+
+
+(define (subr.flush args env)
+  (if (not (= 0 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'undef (flush))))
+
+
 ; TODO: implement load
+
+
+(define (subr.read-string args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'number ((car args) 'type))) (v/t 'error "number required"))
+        (else (v/t 'string (read-string ((car args) 'value))))))
+
+
+(define (subr.read-line args env)
+  (if (not (= 0 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (let ((result (read-line)))
+      (if (eof-object? result)
+        (v/t 'eof-object result)
+        (v/t 'string result)))))
+
+
+(define (subr.with-input-from-file args env)
+  (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string  ((car args) 'type))) (v/t 'error "string required"))
+        ((not (eq? 'closure ((cadr args) 'type))) (v/t 'error "closure required"))
+        (else (with-input-from-file
+                ((car args) 'value)
+                (lambda ()
+                  (evaluate (v/t 'list (list (v/t 'quote (cadr args)))) env))))))
+
+
+(define (subr.load args env)
+  (define (read-terms code env)
+    (let loop ((ind 0))
+      (if (>= ind (string-length code))
+        (v/t 'number ind)
+        (let* ((parse-result (parse-term code ind))
+               (tree (car parse-result))
+               (next-ind (cdr parse-result)))
+          (cond ((eq? 'non-eot next-ind)  (v/t 'number ind))
+                ((eq? 'none (tree 'type)) (v/t 'number (string-length code)))
+                ((tree 'error?) tree)
+                (else
+                  (let ((result (evaluate tree env)))
+                    (if (result 'error?)
+                      result
+                      (loop next-ind)))))))))
+
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (with-input-from-file
+                ((car args) 'value)
+                (lambda ()
+                  (let* ((code (read-string 1000000000000))
+                         (result (read-terms code env)))
+                    (cond ((result 'error?) result)
+                          ((= (result 'value) (string-length code)) (v/t 'bool #t))
+                          (else (v/t 'error "EOL in the list")))))))))
