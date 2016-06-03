@@ -1,5 +1,4 @@
 ; evaluator.scm
-(load "./result.scm")
 
 
 (define (evaluate tree env)
@@ -59,9 +58,8 @@
               (let ((rest (loop (cdr args))))
                 (cond ((rest 'error?) rest)
                       ((eq? 'empty (rest 'type))
-                       (v/t 'args (cons result '())))
-                      (else
-                        (v/t 'args (cons result (rest 'value)))))))))))
+                         (v/t 'args (list result)))
+                      (else (v/t 'args (cons result (rest 'value)))))))))))
 
     (define (execute-proc proc-t args env)
       (let* ((proc (evaluate proc-t env)))
@@ -74,13 +72,11 @@
                       ((proc 'value) (vals 'value) env))))
               (else (v/t 'error "invalid application")))))
 
-    ; (let ((po
     (and
       (eq? (tree 'type) 'list)
       (let ((proc (car (tree 'value)))
             (args (cdr (tree 'value))))
         (execute-proc proc args env)))
-    ; )) (display ((po 'value) 'value)) po)
     )
 
   (or 

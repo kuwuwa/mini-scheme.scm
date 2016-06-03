@@ -1,5 +1,5 @@
 ; frame.scm
-(load "./result.scm")
+
 
 (define (frame alist outer-frame)
   (lambda (cmd)

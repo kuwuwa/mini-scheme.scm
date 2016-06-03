@@ -111,7 +111,7 @@
   (define err-malformed (v/t 'error "malformed let"))
 
   (cond ((< (length args) 2) err-malformed)
-        ((eq? ((car args) 'type) 'label) (syntax-named-let args env))
+        ((eq? ((car args) 'type) 'symbol) (syntax-named-let args env))
         (else
           (let ((bindings (evaluate-bindings (car args) env)))
             (if (bindings 'error?)
@@ -128,7 +128,7 @@
     (let ((bindings (evaluate-bindings (cadr args) env)))
       (if (bindings 'error?)
         bindings
-        (let* ((symbols (map car bindings))
+        (let* ((symbols (map (lambda (s) (v/t 'symbol s)) (map car (bindings 'value))))
                (closname ((car args) 'value))
                (body (cddr args))
                (clos (new-closure symbols body env))
@@ -444,14 +444,13 @@
                                                (rest 'value)))))))))))
 
   (define closure (lambda (_args caller-env)
-    (let ((args (evaluate-args _args caller-env)))
-      (if (args 'error?)
-        args
-        (let ((bindings (get-bindings symbols (args 'value))))
+    (let ((args _args))
+        (let ((bindings (get-bindings symbols args)))
           (if (bindings 'error?)
             bindings
             (let ((new-env (frame (bindings 'value) callee-env)))
-              (evaluate-body body new-env))))))))
+              (evaluate-body body new-env))))
+      )))
 
   (let ((check-result (check-body body)))
     (if (check-result 'error?)

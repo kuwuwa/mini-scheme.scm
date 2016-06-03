@@ -2,8 +2,9 @@
 (load "./display.scm")
 (load "./parser.scm")
 (load "./evaluator.scm")
-(load "./global-env.scm")
+(load "./functions.scm")
 (load "./syntaxes.scm")
+(load "./global-env.scm")
 
 (define (repl)
   (define (read-terms code)
@@ -18,25 +19,26 @@
                 ((tree 'error?) (string-length code))
                 (else
                   (let ((result (evaluate tree global-env)))
-                    (display "output: ")
+                    (display "output -> ")
                     (write (result 'value))
+                    (display " : ")
+                    (display (result 'type))
                     (newline)
                     (loop next-ind))))))))
 
-  (let loop ((left-code ""))
+  (define (loop left-code)
     (let ((raw-line (begin
-                  (display ">>> ")
+                      (display "left code: ")
+                      (display left-code)
+                      (newline)
+                      (display "MINI-SCHEME >>> ")
                   (flush)
                   (read-line))))
       (if (and (= 0 (string-length left-code)) (eof-object? raw-line))
         'bye
         (let* ((line (if (eof-object? raw-line) "" raw-line))
                (code (string-append left-code " " line))
-               (end-ind (read-terms code))
-               (__ (begin
-                     (display "left code: ")
-                     (display (string-copy code end-ind (string-length code)))
-                     (newline)
-                     ))
-               )
-          (loop (string-copy code end-ind (string-length code))))))))
+               (end-ind (read-terms code)))
+          (loop (string-copy code end-ind (string-length code)))))))
+  
+  (loop "")) 
