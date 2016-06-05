@@ -18,6 +18,17 @@
 
   (define invalid-syntax (cons (v/t 'error "invalid syntax") ()))
 
+  (define (skip-comment code _ind)
+    (define (find-eol code ind)
+      (cond ((>= ind (string-length code)) ind)
+            ((equal? #\newline (string-ref code ind)) (+ ind 1))
+            (else (find-eol code (+ ind 1)))))
+
+    (let* ((ind (skip-delimiter code _ind)))
+      (and (< ind (string-length code))
+           (equal? #\; (string-ref code ind))
+           (parse-term code (find-eol code (+ ind 1))))))
+
   (define (parse-char code _ind)
     (define (end-of-symbol code ind)
       ; parameter: the index of the first character in an identifier in string
@@ -200,6 +211,7 @@
     (if (>= ind (string-length code))
       (cons (v/t 'none ()) ind)
       (or
+        (skip-comment code ind)
         (parse-dot code ind)
         (parse-char code ind)
         (parse-bool code ind)
