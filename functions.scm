@@ -131,8 +131,8 @@
 (define (subr.cadr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? ((cdr ((car args) 'value)) 'value))) (v/t 'error "pair required"))
-        (else (car ((cdr ((car args) 'value)) 'value)))))
+        ((not (pair? (cdr ((car args) 'value)))) (v/t 'error "pair required"))
+        (else (cadr ((car args) 'value)))))
 
 
 (define (subr.cdr args env)
@@ -144,15 +144,16 @@
 (define (subr.cdar args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error "pair required"))
-        (else (cdr ((car ((car args) 'value)) 'value)))))
+        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error
+                                                               "pair required"))
+        (else (v/t 'list (cdr ((car ((car args) 'value)) 'value))))))
 
 
 (define (subr.cddr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? ((cdr ((car args) 'value)) 'value))) (v/t 'error "pair required"))
-        (else (cdr ((cdr ((car args) 'value)) 'value)))))
+        ((not (pair? (cdr ((car args) 'value)))) (v/t 'error "pair required"))
+        (else (v/t 'list (cddr ((car args) 'value))))))
 
 
 (define (subr.cons args env)
@@ -165,7 +166,6 @@
   (v/t 'list (apply list args)))
 
 
-; TODO: FIX ME
 (define (subr.memq args env)
   (if (not (= 2 (length args)))
     (v/t 'error "wrong number of arguments")
