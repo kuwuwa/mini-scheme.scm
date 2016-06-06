@@ -132,24 +132,39 @@
   (define (parse-string code _ind)
     ; parameter: (possibly) the index of the beginning character of string literal
     ; return: (the the content of string and its end index) or #f
-    (define (end-of-string code ind)
+
+    (define (take-string code ind)
       (if (>= ind (string-length code))
-        ()
+        (cons (v/t 'error "EOF in a string literal") ())
         (let ((ch (string-ref code ind)))
-          (cond ((and (equal? ch #\\)
-                      (end-of-string code (+ ind 2)))) ; escape sequence
-                ((equal? ch #\") ind)
-                (else (end-of-string code (+ ind 1)))))))
+          (cond ((equal? ch #\") (cons (v/t 'list ()) (+ ind 1)))
+                ((equal? ch #\\)
+                 (let ((rest (take-string code (+ ind 2))))
+                   (if ((car rest) 'error?)
+                     rest
+                     (if (equal? #\n (string-ref code (+ ind 1)))
+                       (cons (v/t 'list (cons #\newline ((car rest) 'value)))
+                             (cdr rest))
+                       (cons (v/t 'error (string-append "undefined character"))
+                             ())))))
+                (else
+                 (let ((rest (take-string code (+ ind 1))))
+                   (if ((car rest) 'error?)
+                     rest
+                     (cons (v/t 'list (cons (string-ref code ind)
+                                            ((car rest) 'value)))
+                           (cdr rest)))))))))
 
     (let ((ind (skip-delimiter code _ind)))
-      (if (and (< ind (string-length code))
-               (equal? #\" (string-ref code ind)))
-        (let ((end-index (end-of-string code (+ ind 1))))
-          (if (null? end-index)
-            (cons (v/t 'error "EOT in a string literal") 'non-eot)
-            (cons (v/t 'string (string-copy code (+ ind 1) end-index))
-                  (+ end-index 1))))
-        #f)))
+      (and (< ind (string-length code))
+           (equal? #\" (string-ref code ind))
+           (let* ((result (take-string code (+ ind 1)))
+                  (result-list (car result))
+                  (end-ind (cdr result)))
+             (if (result-list 'error?)
+               result
+               (cons (v/t 'string (list->string (result-list 'value)))
+                     end-ind))))))
 
   (define (parse-list code _index)
     ; parameter: (possibly) the index of the beginning parenthesized expression
