@@ -128,12 +128,14 @@
     (let ((bindings (evaluate-bindings (cadr args) env)))
       (if (bindings 'error?)
         bindings
-        (let* ((symbols (map (lambda (s) (v/t 'symbol s)) (map car (bindings 'value))))
+        (let* ((symbols (map (lambda (s) (v/t 'symbol s))
+                             (map car (bindings 'value))))
                (closname ((car args) 'value))
                (body (cddr args))
-               (clos (new-closure symbols body env))
-               (new-env (frame (cons (cons closname clos) (bindings 'value)) env)))
-          (evaluate-body body new-env))))))
+               (local-env (frame () env))
+               (clos (new-closure symbols body local-env)))
+          ((local-env 'push!) closname clos)
+          ((clos 'value) (map cdr (bindings 'value)) local-env))))))
 
 
 (define (syntax-let* args env)
