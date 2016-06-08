@@ -11,6 +11,8 @@
 
 (define (w-null? v) (eq? 'empty (v 'type)))
 
+(define (w-pair? v) (pair? (v 'value)))
+
 (define (w-list? v)
   (or (w-null? v)
       (and (eq? 'list (v 'type))
@@ -19,7 +21,7 @@
 (define (w-map f v)
   (if (eq? 'empty (v 'type))
     (v/t 'empty ())
-    (cons (f (w-car v)) (w-map f (w-cdr v)))))
+    (v/t 'list (cons (f (w-car v)) (w-map f (w-cdr v))))))
 
 (define (w-length v)
   (let loop ((len 0)

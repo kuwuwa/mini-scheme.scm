@@ -24,4 +24,4 @@
                              (v/t 'undef "value replaced successfully")))
                      ((null? outer-frame)
                       (v/t 'error (string-append "variable `" symbol "' not found")))
-                     (else ((outer-frame 'replace) symbol value)))))))))
+                     (else ((outer-frame 'replace!) symbol value)))))))))
