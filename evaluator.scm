@@ -1,5 +1,7 @@
 ; evaluator.scm
 
+(load "./list-util.scm")
+
 
 (define (evaluate tree env)
   ; parameter: syntax tree & environment
@@ -46,20 +48,22 @@
       (eq? (tree 'type) 'quote)
       (tree 'value)))
 
-  ; expr
-  (define (evaluate-list tree  env)
+  ; list
+  (define (evaluate-list tree env)
     (define (evaluate-args _args env)
       (let loop ((args _args))
-        (if (null? args)
-          (v/t 'empty '())
-          (let ((result (evaluate (car args) env)))
-            (if (result 'error?)
-              result
-              (let ((rest (loop (cdr args))))
-                (cond ((rest 'error?) rest)
-                      ((eq? 'empty (rest 'type))
-                         (v/t 'args (list result)))
-                      (else (v/t 'args (cons result (rest 'value)))))))))))
+        (cond ((w-null? args) (v/t 'empty ()))
+              ((not (eq? 'list (args 'type))) (v/t 'error
+                                                   "improper list is not available"))
+              (else
+                (let ((result (evaluate (w-car args) env)))
+                  (if (result 'error?)
+                    result
+                    (let ((rest (loop (w-cdr args))))
+                      (cond ((rest 'error?) rest)
+                            ((eq? 'empty (rest 'type))
+                               (v/t 'list (list result)))
+                            (else (v/t 'list (cons result (rest 'value))))))))))))
 
     (define (execute-proc proc-t args env)
       (let* ((proc (evaluate proc-t env)))
@@ -74,10 +78,9 @@
 
     (and
       (eq? (tree 'type) 'list)
-      (let ((proc (car (tree 'value)))
-            (args (cdr (tree 'value))))
-        (execute-proc proc args env)))
-    )
+      (let ((proc (w-car tree))
+            (args (w-cdr tree)))
+        (execute-proc proc args env))))
 
   (or 
     (evaluate-empty tree env)
