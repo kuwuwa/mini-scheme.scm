@@ -1,5 +1,6 @@
 ; parser.scm
 
+
 (define (delimiter? ch) (memq ch '(#\  #\newline)))
 
 
@@ -195,13 +196,10 @@
                           (let* ((rest (parse-terms code next-ind))
                                  (terms (car rest))
                                  (last-ind (cdr rest)))
-                            (cond ((terms 'error?) rest)
-                                  ((memq (terms 'type) '(list empty))
-                                    (cons (v/t 'list (cons term (terms 'value)))
-                                          last-ind))
-                                  (else
-                                    (cons (v/t 'list (cons term terms))
-                                          last-ind)))))))))))
+                            (if (terms 'error?)
+                              rest
+                              (cons (v/t 'list (cons term terms))
+                                    last-ind))))))))))
 
 
     (let ((index (skip-delimiter code _index)))

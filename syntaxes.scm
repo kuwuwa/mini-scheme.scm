@@ -1,21 +1,21 @@
 ; syntaxes.scm
+
+(load "./list-util.scm")
 (load "./evaluator.scm")
 (load "./frame.scm")
 (load "./result.scm")
 
-
 ; Define ::= (define Id Exp)
 ;     | (define (Id Id* [. Id]) Body)
-
 
 (define (syntax-define args env)
   (define err-malformed (v/t 'error "malformed define"))
 
-  (if (< (length args) 1)
+  (if (< (w-length args) 1)
     err-malformed
-    (let ((symbol (car args)))
+    (let ((symbol (w-car args)))
       (cond ((and (eq? 'symbol (symbol 'type))
-                  (= (length args) 2))
+                  (= (w-length args) 2))
                (syntax-define-value args env))
             ((eq? 'list (symbol 'type)) (syntax-define-closure args env))
             (else err-malformed)))))
@@ -24,30 +24,29 @@
 (define (syntax-define-value args env)
   (define err-malformed (v/t 'error "malformed define"))
 
-  (if (< (length args) 2)
+  (if (< (w-length args) 2)
     err-malformed
-    (let* ((_symbol (car args)))
-      (if (not (eq? 'symbol (_symbol 'type)))
+    (let* ((symbol (w-car args)))
+      (if (not (eq? 'symbol (symbol 'type)))
         err-malformed
-        (let* ((symbol (_symbol 'value))
-               (value (evaluate (cadr args) env)))
+        (let* ((symbol-name (symbol 'value))
+               (value (evaluate (w-cadr args) env)))
           (if (value 'error?)
             value
             (begin
-              ((env 'push!) symbol value)
-              _symbol)))))))
+              ((env 'push!) symbol-name value)
+              symbol)))))))
 
 
 (define (syntax-define-closure args env)
   (define err-malformed (v/t 'error "malformed define"))
-  (define invalid-syntax (v/t 'error "invalid syntax"))
 
-  (let ((lst ((car args) 'value)))
-    (if (not (pair? lst))
+  (let ((lst (w-car args)))
+    (if (not (eq? 'list (lst 'type)))
       err-malformed
-      (let* ((closure-symbol (car lst))
-             (params (cdr lst))
-             (body (cdr args))
+      (let* ((closure-symbol (w-car lst))
+             (params (to-plain-list (w-cdr lst)))
+             (body (to-plain-list (w-cdr args)))
              (clos (new-closure params body env)))
         (if (clos 'error?)
           clos
@@ -56,49 +55,32 @@
             closure-symbol))))))
 
 
-; Exp ::= Const                                   定数
-;       | Id                                      変数
-;       | (lambda Arg Body)                       λ 抽象
-;       | (Exp Exp*)                              関数適用
-;       | (quote S-Exp)                           クオート (注1)
-;       | (set! Id Exp)                           代入
-;       | (let [Id] Bindings Body)                let
-;       | (let* Bindings Body)                    let* (注4)
-;       | (letrec Bindings Body)                  letrec
-;       | (if Exp Exp [Exp])                      条件式(if)
-;       | (cond (Exp Exp+)* [(else Exp+)])        条件式(cond) (注5)
-;       | (and Exp*)                              条件式(and)
-;       | (or Exp*)                               条件式(or)
-;       | (begin Exp*)                            逐次実行
-;       | (do ((Id Exp Exp)*) (Exp Exp*) Body)    繰り返し
-
-
 (define (syntax-lambda args env)
   (define err-malformed (v/t 'error "malformed lambda"))
 
-  (if (< (length args) 1)
+  (if (< (w-length args) 1)
     err-malformed
-    (let ((symbols ((car args) 'value)))
-      (new-closure symbols (cdr args) env))))
+    (let ((symbols (w-car args)))
+      (new-closure (to-plain-list symbols)
+                   (to-plain-list (w-cdr args)) env))))
 
 
 (define (syntax-quote args env)
   (define err-malformed (v/t 'error "malformed quote"))
 
-  (if (not (= (length args) 1))
+  (if (not (= (w-length args) 1))
     err-malformed
-    (let ((tree (car args)))
-      tree)))
+    (w-car args)))
 
 
 (define (syntax-set! args env)
   (define err-malformed (v/t 'error "malformed set!"))
 
-  (if (or (not (= (length args) 2))
-          (not (eq? 'symbol ((car args) 'type))))
+  (if (or (not (= (w-length args) 2))
+          (not (eq? 'symbol ((w-car args) 'type))))
     err-malformed
-    (let ((name ((car args) 'value))
-          (value (evaluate (cadr args) env)))
+    (let ((name ((w-car args) 'value))
+          (value (evaluate (w-cadr args) env)))
       (if (value 'error?)
         value
         (let ((rc ((env 'replace!) name value)))
@@ -110,48 +92,48 @@
 (define (syntax-let args env)
   (define err-malformed (v/t 'error "malformed let"))
 
-  (cond ((< (length args) 2) err-malformed)
-        ((eq? ((car args) 'type) 'symbol) (syntax-named-let args env))
+  (cond ((< (w-length args) 2) err-malformed)
+        ((eq? ((w-car args) 'type) 'symbol) (syntax-named-let args env))
         (else
-          (let ((bindings (evaluate-bindings (car args) env)))
+          (let ((bindings (evaluate-bindings (to-plain-list (w-car args)) env)))
             (if (bindings 'error?)
               bindings
               (let ((new-env (frame (bindings 'value) env)))
-                (evaluate-body (cdr args) new-env)))))))
+                (evaluate-body (to-plain-list (w-cdr args)) new-env)))))))
 
 
 (define (syntax-named-let args env)
   (define err-malformed (v/t 'error "malformed let"))
 
-  (if (not (eq? ((car args) 'type) 'symbol))
+  (if (not (eq? 'symbol ((w-car args) 'type)))
     err-malformed
-    (let ((bindings (evaluate-bindings (cadr args) env)))
+    (let ((bindings (evaluate-bindings (to-plain-list (w-cadr args)) env)))
       (if (bindings 'error?)
         bindings
         (let* ((symbols (map (lambda (s) (v/t 'symbol s))
                              (map car (bindings 'value))))
-               (closname ((car args) 'value))
-               (body (cddr args))
+               (closname ((w-car args) 'value))
+               (body (to-plain-list (w-cddr args)))
                (local-env (frame () env))
                (clos (new-closure symbols body local-env)))
           ((local-env 'push!) closname clos)
           ((clos 'value) (map cdr (bindings 'value)) local-env))))))
 
 
-(define (syntax-let* args env)
+(define (syntax-let* args env) ; TODO: more validation
   (define err-malformed (v/t 'error "malformed let"))
   (define invalid-syntax (v/t 'error "invalid syntax"))
 
   (define (evaluate-bindings* tree env)
-    (let loop ((bindings (tree 'value)))
+    (let loop ((bindings tree))
       (if (null? bindings)
         (v/t 'bindings '())
         (let ((cell (car bindings)))
           (if (or (not (eq? (cell 'type) 'list))
-                  (not (= (length (cell 'value)) 2)))
+                  (not (= 2 (w-length cell))))
             invalid-syntax
-            (let ((label (car (cell 'value)))
-                  (value (evaluate (cadr (cell 'value)) env)))
+            (let ((label (w-car cell))
+                  (value (evaluate (w-cadr cell) env)))
               (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
                     ((value 'error?) value)
                     (else (begin
@@ -163,59 +145,58 @@
                                 (v/t 'bindings
                                      (cons binding (rest 'value))))))))))))))
 
-  (if (< (length args) 2) err-malformed
+  (if (< (w-length args) 2)
+    err-malformed
     (let* ((new-env (frame '() env))
-           (bindings (evaluate-bindings* (car args) new-env)))
+           (bindings (evaluate-bindings* (to-plain-list (w-car args)) new-env)))
       (if (bindings 'error?)
         bindings
-        (evaluate-body (cdr args) new-env)))))
+        (evaluate-body (to-plain-list (w-cdr args)) new-env)))))
 
 
-(define (syntax-letrec args env)
+(define (syntax-letrec args env) ; TODO: more validations
   (define err-malformed (v/t 'error "malformed let"))
 
   (define (evaluate-bindings-rec tree env)
-    (let loop ((bindings (tree 'value)))
-      (define invalid-syntax (v/t 'error "invalid syntax"))
-
+    (define invalid-syntax (v/t 'error "invalid syntax"))
+    (let loop ((bindings tree))
       (if (null? bindings)
         (v/t 'bindings '())
         (let ((cell (car bindings)))
-          (if (or (not (eq? (cell 'type) 'list))
-                  (not (= (length (cell 'value)) 2)))
+          (if (or (not (eq? 'list (cell 'type)))
+                  (not (= 2 (w-length cell))))
             invalid-syntax
-            (let ((label (car (cell 'value))))
+            (let ((label (w-car cell)))
               (if (not (eq? 'symbol (label 'type)))
                 invalid-syntax
                 (begin
                   ((env 'push!) (label 'value) (v/t 'error "circular reference"))
-                  (let ((value (evaluate (cadr (cell 'value)) env)))
+                  (let ((value (evaluate (w-cadr cell) env)))
+                    ((env 'replace!) (label 'value) value)
                     (if (value 'error?)
                       value
                       (let ((binding (cons (label 'value) value))
                             (rest (loop (cdr bindings))))
                         (if (rest 'error?)
                           rest
-                          (begin
-                            ((env 'push!) (label 'value) value)
-                            (v/t 'bindings (cons binding (rest 'value))))))))))))))))
+                          (v/t 'bindings (cons binding (rest 'value)))))))))))))))
 
-  (if (< (length args) 2) err-malformed
+  (if (< (w-length args) 2) err-malformed
     (let* ((new-env (frame '() env))
-           (bindings (evaluate-bindings-rec (car args) env)))
+           (bindings (evaluate-bindings-rec (to-plain-list (w-car args)) env)))
       (if (bindings 'error?)
         bindings
-        (evaluate-body (cdr args) new-env)))))
+        (evaluate-body (to-plain-list (w-cdr args)) new-env)))))
 
 
 (define (syntax-if args env)
-  (if (or (not (list? args))
-          (not (eq? 3 (length args))))
+  (if (or (not (w-list? args))
+          (not (eq? 3 (w-length args))))
     (v/t 'error "malformed if")
-    (let ((condition (evaluate (car args) env)))
+    (let ((condition (evaluate (w-car args) env)))
       (cond ((condition 'error?) condition)
-            ((condition 'value) (evaluate (cadr args) env))
-            (else (evaluate (caddr args) env))))))
+            ((condition 'value) (evaluate (w-cadr args) env))
+            (else (evaluate (w-caddr args) env))))))
 
 
 (define (syntax-cond args _env)
@@ -226,20 +207,20 @@
         (if (null? args) (v/t 'ok "valid cond form")
           (let ((cell (car args)))
             (if (or (not (eq? 'list (cell 'type)))
-                    (not (= 2 (length (cell 'value)))))
+                    (not (= 2 (w-length cell))))
               (v/t 'error "malformed cond")
               (loop (cdr args))))))))
 
   (define (loop args env)
     (if (null? args) (v/t 'undef '())
-      (let ((condition (evaluate (car ((car args) 'value)) env)))
+      (let ((condition (evaluate (w-car (car args)) env)))
         (cond ((condition 'error?) condition)
-              ((condition 'value) (evaluate (cadr ((car args) 'value)) env))
+              ((condition 'value) (evaluate (w-cadr (car args)) env))
               (else (loop (cdr args) env))))))
 
-  (if ((check-cond args) 'error?)
+  (if ((check-cond (to-plain-list args)) 'error?)
     check-cond
-    (loop args _env)))
+    (loop (to-plain-list args) _env)))
 
 
 (define (syntax-else args env)
@@ -247,7 +228,7 @@
 
 
 (define (syntax-and _args env)
-  (let loop ((args _args)
+  (let loop ((args (to-plain-list _args))
              (ret (v/t 'bool #t)))
     (if (null? args)
       ret
@@ -258,7 +239,7 @@
 
 
 (define (syntax-or _args env)
-  (let loop ((args _args)
+  (let loop ((args (to-plain-list _args))
              (ret (v/t 'bool #f)))
     (if (null? args)
       ret
@@ -269,7 +250,7 @@
 
 
 (define (syntax-begin _args env)
-  (let loop ((args _args)
+  (let loop ((args (to-plain-list _args))
              (ret (v/t 'undef '())))
     (if (null? args)
       ret
@@ -285,34 +266,33 @@
 
   (define (check-do args)
     (define (check-vars _vars)
-      (define err-malformed (v/t 'error "malformed do"))
       (define (loop vars)
-        (if (null? vars)
-          (v/t 'ok "OK")
-          (let ((var (car vars)))
+        (if (w-null? vars)
+          ok
+          (let ((var (w-car vars)))
             (if (or (not (eq? 'list (var 'type)))
-                    (not (= 3 (length (var 'value)))))
+                    (not (= 3 (w-length var))))
               err-malformed
-              (let ((label (car (var 'value))))
+              (let ((label (w-car var)))
                 (if (or (not (eq? 'symbol (label 'type))))
                   err-malformed
-                  (loop (cdr vars))))))))
+                  (loop (w-cdr vars))))))))
 
-      (if (eq? 'list (_vars 'type))
-        (loop (_vars 'value))))
+      (and (eq? 'list (_vars 'type))
+        (loop _vars )))
 
     (define (check-return ret)
       (cond ((not (eq? 'list (ret 'type))) err-malformed)
-            ((< (length (ret 'value)) 1) err-malformed)
-            (else (let ((body-status (check-body (cdr (ret 'value)))))
+            ((< (w-length ret) 1) err-malformed)
+            (else (let ((body-status (check-body (to-plain-list (w-cdr ret)))))
                     (if (body-status 'error?)
-                      err-malformed
+                      (v/t 'error "dame")
                       ok)))))
 
-    (if (< (length args) 2)
+    (if (< (w-length args) 2)
       err-malformed
-      (let* ((vars (car args))
-             (return (cadr args))
+      (let* ((vars (w-car args))
+             (return (w-cadr args))
              (vars-status (check-vars vars))
              (return-status (check-return return)))
         (cond ((vars-status 'error?) vars-status)
@@ -321,20 +301,20 @@
 
   (let ((check-result (check-do args)))
     (if (check-result 'error?)
-      err-malformed
-      (let* ((vars ((car args) 'value))
-             (symbols (map (lambda (b) (car (b 'value))) vars))
-             (bindings (let ((thunks (map (lambda (b) (cadr (b 'value))) vars)))
-                         (evaluate-bindings (v/t 'bindings
-                                                 (map (lambda (b) (v/t 'list b))
-                                                      (map list symbols thunks)))
+      check-result
+      (let* ((vars (to-plain-list (w-car args)))
+             (symbols (map w-car vars))
+             (bindings (let ((thunks (map w-cadr vars)))
+                         (evaluate-bindings (map (lambda (a b)
+                                                   (to-typed-list (list a b)))
+                                                 symbols thunks)
                                             env)))
-             (steps (map (lambda (b) (caddr (b 'value))) vars))
+             (steps (map w-caddr vars))
              ;
-             (ret ((cadr args) 'value))
-             (end-test (car ret))
-             (return-body (cdr ret))
-             (body (cddr args))
+             (ret (w-cadr args))
+             (end-test (w-car ret))
+             (return-body (to-plain-list (w-cdr ret)))
+             (body (to-plain-list (w-cddr args)))
              (local-env (frame (bindings 'value) env)))
         (if (bindings 'error?)
           bindings
@@ -343,9 +323,11 @@
               (cond ((test-result 'error?) test-result)
                     ((test-result 'value) (evaluate-body return-body local-env))
                     (else
+                      (evaluate-body body local-env)
                       (let ((new-bindings (evaluate-bindings
-                                            (v/t 'list (map (lambda (b) (v/t 'list b))
-                                                            (map list symbols steps)))
+                                            (map (lambda (a b)
+                                                   (to-typed-list (list a b)))
+                                                 symbols steps)
                                             local-env))
                             (replacer (lambda (binding)
                                         (let ((symbol (car binding))
@@ -357,13 +339,12 @@
 
 ; macro
 
-
 (define (syntax-define-macro _args callee-env)
   (define (new-macro params expr)
     (define (macro args caller-env)
-      (if (not (eq? (length params) (length args)))
+      (if (not (eq? (length params) (w-length args)))
         (v/t 'error "wrong number of arguments")
-        (let* ((bindings (map cons params args))
+        (let* ((bindings (map cons params (to-plain-list args)))
                (new-env (frame bindings callee-env))
                (new-expr (evaluate expr new-env)))
           (if (new-expr 'error?)
@@ -371,15 +352,16 @@
             (evaluate new-expr caller-env)))))
     (v/t 'syntax macro))
 
-  (cond ((not (= (length _args) 2)) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'list ((car _args) 'type))) (v/t 'error "malformed define-macro"))
-        ((not (check-all (lambda (a) (eq? 'symbol (a 'type))) ((car _args) 'value)))
-            (v/t 'error "symbols required"))
+  (cond ((not (= (w-length _args) 2)) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'list ((w-car _args) 'type))) (v/t 'error "malformed define-macro"))
+        ((not (check-all (lambda (a) (eq? 'symbol (a 'type)))
+                         (to-plain-list (w-car _args))))
+           (v/t 'error "symbols required"))
         (else
-          (let* ((symbols (map (lambda (a) (a 'value)) ((car _args) 'value)))
+          (let* ((symbols (map (lambda (a) (a 'value)) (to-plain-list (w-car _args))))
                  (macro-name (car symbols))
                  (params (cdr symbols))
-                 (expr (cadr _args)))
+                 (expr (w-cadr _args)))
             ((callee-env 'push!) macro-name (new-macro params expr))
             (v/t 'symbol macro-name)))))
 
@@ -387,17 +369,17 @@
 ; utils
 
 (define (evaluate-bindings tree env)
-  (let loop ((bindings (tree 'value)))
+  (let loop ((bindings tree))
     (define invalid-syntax (v/t 'error "invalid syntax"))
 
     (if (null? bindings)
       (v/t 'bindings '())
       (let ((cell (car bindings)))
-        (if (or (not (eq? (cell 'type) 'list))
-                (not (= (length (cell 'value)) 2)))
+        (if (or (not (w-list? cell))
+                (not (= (w-length cell) 2)))
           invalid-syntax
-          (let ((label (car (cell 'value)))
-                (value (evaluate (cadr (cell 'value)) env)))
+          (let ((label (w-car cell))
+                (value (evaluate (w-cadr cell) env)))
             (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
                   ((value 'error?) value)
                   (else
@@ -413,10 +395,10 @@
     (let loop ((args _args))
       (if (null? args)
         (v/t 'empty '())
-        (let ((result (evaluate (car args) env)))
+        (let ((result (evaluate (w-car args) env)))
           (if (result 'error?)
             result
-            (let ((rest (loop (cdr args))))
+            (let ((rest (loop (w-cdr args))))
               (cond ((rest 'error?) rest)
                     ((eq? 'empty (rest 'type))
                      (v/t 'args (cons result '())))
@@ -429,30 +411,28 @@
           ((null? symbols) (v/t 'error "wrong number of arguments"))
           ((not (pair? symbols))
             (if (eq? 'symbol (symbols 'type))
-              (v/t 'bindings (cons (cons (symbols 'value) (v/t 'list args)) '()))
+              (v/t 'bindings (list (cons (symbols 'value)
+                                         (to-typed-list args))))
               (v/t 'error "invalid syntax")))
           ((null? args) (v/t 'error "wrong number of arguments"))
           (else
             (let ((symbol (car symbols)))
               (if (not (eq? 'symbol (symbol 'type)))
-                (v/t 'error "invalid syntax")
+                (v/t 'error "invalid syntax2")
                 (let ((rest (get-bindings (cdr symbols) (cdr args))))
                   (cond ((rest 'error?) rest)
                         ((eq? 'empty (rest 'type))
-                          (v/t 'bindings (cons (cons (symbol 'value) (car args))
-                                               '())))
+                          (v/t 'bindings (list (cons (symbol 'value) (car args)))))
                         (else
                           (v/t 'bindings (cons (cons (symbol 'value) (car args))
                                                (rest 'value)))))))))))
 
-  (define closure (lambda (_args caller-env)
-    (let ((args _args))
-        (let ((bindings (get-bindings symbols args)))
-          (if (bindings 'error?)
-            bindings
-            (let ((new-env (frame (bindings 'value) callee-env)))
-              (evaluate-body body new-env))))
-      )))
+  (define closure (lambda (args caller-env)
+    (let ((bindings (get-bindings symbols args)))
+      (if (bindings 'error?)
+        bindings
+        (let ((new-env (frame (bindings 'value) callee-env)))
+          (evaluate-body body new-env))))))
 
   (let ((check-result (check-body body)))
     (if (check-result 'error?)
@@ -467,18 +447,10 @@
       return-value
       (let* ((term (car body))
              (rest (cdr body)))
-        (if (null? rest)
-          (evaluate term env)
-          (let ((next-value (evaluate term env)))
-            (if (next-value 'error?)
-              next-value
-              (loop rest next-value))))))))
-
-
-(define (check-all pred lst)
-  (or (null? lst)
-      (and (pred (car lst))
-           (check-all pred (cdr lst)))))
+        (let ((value (evaluate term env)))
+          (if (value 'error?)
+            value
+            (loop rest value)))))))
 
 
 (define (check-body _body)
@@ -488,8 +460,8 @@
       (if (eq? prev-type 'define)
         (v/t 'error "invalid body form")
         (v/t 'ok "no problem :)"))
-      (let* ((term (car body))
-             (rest (cdr body)))
+      (let ((term (car body))
+            (rest (cdr body)))
         (if (and (not (eq? prev-type 'define)) (eq? (term 'type) 'define))
           (v/t 'error "invalid body form")
           (loop rest (term 'type)))))))
