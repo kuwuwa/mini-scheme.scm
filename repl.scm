@@ -16,7 +16,7 @@
           (cond ((w-null? lst) (display ")"))
                 ((not (pair? (lst 'value))) (begin
                                               (display " . ")
-                                              (display-tre lst)
+                                              (display-tree lst)
                                               (display ")")))
                 (else (begin
                         (display (if first "" " "))
