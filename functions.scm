@@ -40,9 +40,9 @@
 
 (define (subr./ args env)
   (let ((nums (map (lambda (a) (a 'value)) args)))
-    (if (check-all number? nums)
-      (v/t 'number (apply / nums))
-      (v/t 'error "number required"))))
+    (cond ((memq 0 (cdr nums)) (v/t 'error "division by zero"))
+          ((check-all number? nums) (v/t 'number (apply / nums)))
+          (else (v/t 'error "number required")))))
 
 
 (define (subr.= args env)
@@ -88,7 +88,7 @@
 (define (subr.null? args env)
   (if (not (= 1 (length args)))
     (v/t 'error "wrong number of arguments")
-    (v/t 'bool (null? ((car args) 'value)))))
+    (v/t 'bool (w-null? (car args)))))
 
 
 (define (subr.pair? args env)
@@ -100,13 +100,13 @@
 (define (subr.list? args env)
   (if (not (= 1 (length args)))
     (v/t 'error "wrong number of arguments")
-    (v/t 'bool (list? ((car args) 'value)))))
+    (v/t 'bool (w-list? (car args)))))
 
 
 (define (subr.length args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (list? ((car args) 'value))) (v/t 'error "list required"))
-        (else (v/t 'number (length ((car args) 'value))))))
+        ((not (w-list? (car args))) (v/t 'error "list required"))
+        (else (v/t 'number (w-length (car args))))))
 
 
 (define (subr.symbol? args env)
@@ -118,42 +118,43 @@
 (define (subr.car args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        (else (car ((car args) 'value)))))
+        (else (w-car (car args)))))
 
 
 (define (subr.caar args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error "pair required"))
-        (else (car ((car ((car args) 'value)) 'value)))))
+        ((not (pair? (w-car (car args)))) (v/t 'error "pair required"))
+        (else (w-caar (car args)))))
 
 
 (define (subr.cadr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? (cdr ((car args) 'value)))) (v/t 'error "pair required"))
-        (else (cadr ((car args) 'value)))))
+        ((not (pair? ((w-cdr (car args)) 'value))) (v/t 'error "pair required"))
+        (else (w-cadr (car args)))))
 
 
 (define (subr.cdr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        (else (v/t 'list (cdr ((car args) 'value))))))
+        (else (w-cdr (car args)))))
 
 
 (define (subr.cdar args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? ((car ((car args) 'value)) 'value))) (v/t 'error
-                                                               "pair required"))
-        (else (v/t 'list (cdr ((car ((car args) 'value)) 'value))))))
+        ((not (pair? ((w-car (car args)) 'value))) (v/t 'error
+                                                        "pair required"))
+        (else (w-cdar (car args)))))
 
 
 (define (subr.cddr args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        ((not (pair? (cdr ((car args) 'value)))) (v/t 'error "pair required"))
-        (else (v/t 'list (cddr ((car args) 'value))))))
+        ((not (pair? ((w-cdr (car args)) 'value))) (v/t 'error
+                                                        "pair required"))
+        (else (w-cddr (car args)))))
 
 
 (define (subr.cons args env)
@@ -162,47 +163,55 @@
     (v/t 'list (cons (car args) (cadr args)))))
 
 
-(define (subr.list args env)
-  (v/t 'list (apply list args)))
+(define (subr.list args env) (to-typed-list args))
+
+
+(define (subr.list->string args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'list ((car args) 'type))) (v/t 'error "list required"))
+        ((not (check-all (lambda (ch) (eq? 'char (ch 'type))) (to-plain-list (car args))))
+           (v/t 'error "char required"))
+        (else (v/t 'string (list->string (map (lambda (a) (a 'value))
+                                              (to-plain-list (car args))))))))
 
 
 (define (subr.memq args env)
   (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (eq? 'list ((cadr args) 'type))) (v/t 'error "list required"))
         (else
-          (let loop ((lst ((cadr args) 'value)))
-            (cond ((null? lst) (v/t 'bool #f))
-                  ((eq? ((car args) 'value) ((car lst) 'value)) (v/t 'list lst))
-                  ((not (pair? (cdr lst))) (v/t 'bool #f))
-                  (else (loop (cdr lst))))))))
+          (let loop ((lst (cadr args)))
+            (cond ((w-null? lst) (v/t 'bool #f))
+                  ((eq? ((car args) 'value) ((w-car lst) 'value)) (v/t 'list lst))
+                  ((not (w-pair? (w-cdr lst))) (v/t 'bool #f))
+                  (else (loop (w-cdr lst))))))))
 
 
 (define (subr.member args env)
   (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (eq? 'list ((cadr args) 'type))) (v/t 'error "list required"))
         (else
-          (let loop ((lst ((cadr args) 'value)))
-            (cond ((null? lst) (v/t 'bool #f))
-                  ((equal? ((car args) 'value) ((car lst) 'value)) (v/t 'list lst))
-                  ((not (pair? (cdr lst))) (v/t 'bool #f))
-                  (else (loop (cdr lst))))))))
+          (let loop ((lst (cadr args)))
+            (cond ((w-null? lst) (v/t 'bool #f))
+                  ((equal? ((car args) 'value) ((w-car lst) 'value)) lst)
+                  ((not (w-pair? (w-cdr lst))) (v/t 'bool #f))
+                  (else (loop (w-cdr lst))))))))
 
 
 (define (subr.last args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
-        (else (last ((car args) 'value)))))
+        ((not (w-pair? (car args))) (v/t 'error "pair required"))
+        (else (last (to-plain-list (car args))))))
 
 
 (define (subr.append args env)
-  (if (check-all (lambda (a) (list? (a 'value))) args)
-    (v/t 'list (apply append (map (lambda (a) (a 'value)) args)))
+  (if (check-all (lambda (a) (w-list? (a 'value))) args)
+    (to-typed-list (apply append (map to-plain-list args)))
     (v/t 'error "list required")))
 
 
 (define (subr.set-car! args env)
   (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (w-pair? (car args))) (v/t 'error "pair required"))
         (else
           (set-car! ((car args) 'value) (cadr args))
           (v/t 'undef "undefined"))))
@@ -210,7 +219,7 @@
 
 (define (subr.set-cdr! args env)
   (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (pair? ((car args) 'value))) (v/t 'error "pair required"))
+        ((not (w-pair? (car args))) (v/t 'error "pair required"))
         (else
           (set-cdr! ((car args) 'value) (cadr args))
           (v/t 'undef "undefined"))))
@@ -243,6 +252,15 @@
     (v/t 'bool (eq? 'string ((car args) 'type)))))
 
 
+(define (subr.string-ref args env)
+  (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
+        ((>= ((cadr args) 'value) (string-length ((car args) 'value)))
+            (v/t 'error "out of range"))
+        (else (v/t 'char (string-ref ((car args) 'value) ((cadr args) 'value))))))
+
+
 (define (subr.string-append args env)
   (cond ((< (length args) 1) (v/t 'error "wrong number of arguments"))
         ((not (check-all (lambda (a) (eq? 'string (a 'type))) args))
@@ -252,16 +270,32 @@
                               (map (lambda (a) (a 'value)) args))))))
 
 
+(define (subr.string-copy args env)
+  (cond ((not (= 3 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
+        ((not (eq? 'number ((caddr args) 'type))) (v/t 'error "number required"))
+        (else (v/t 'string (apply string-copy
+                                  (map (lambda (a) (a 'value)) args))))))
+
+
+(define (subr.string-length args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (v/t 'number (string-length ((car args) 'value))))))
+
+
 (define (subr.symbol->string args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (eq? 'symbol ((car args) 'type))) (v/t "symbol is required"))
         (else (v/t 'string (symbol->string ((car args) 'value))))))
 
- 
-(define (subr.string->symbol args env)
+
+(define (subr.string->list args env)
   (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t "string is required"))
-        (else (v/t 'symbol (string->symbol ((car args) 'value))))))
+        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
+        (else (to-typed-list (map (lambda (ch) (v/t 'char ch))
+                                  (string->list ((car args) 'value)))))))
 
 
 (define (subr.string->number args env)
@@ -269,6 +303,30 @@
         ((not (eq? 'string ((car args) 'type))) (v/t "string is required"))
         (else (let ((result (string->number ((car args) 'value))))
                 (if (eq? result #f) (v/t 'bool #f) (v/t 'number result))))))
+
+
+(define (subr.string->symbol args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'string ((car args) 'type))) (v/t "string is required"))
+        (else (v/t 'symbol (string->symbol ((car args) 'value))))))
+
+
+(define (subr.char-alphabetic? args env)
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'bool (char-alphabetic? ((car args) 'value)))))
+
+
+(define (subr.char-numeric? args env)
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'bool (char-numeric? ((car args) 'value)))))
+
+
+(define (subr.char->integer args env)
+  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
+        ((not (eq? 'char ((car args) 'type))) (v/t 'error "char required"))
+        (else (v/t 'number (char->integer ((car args) 'value))))))
 
 
 (define (subr.number->string args env)
@@ -323,7 +381,7 @@
     (if (not (= 1 (length args)))
       (v/t 'error "wrong number of arguments")
       (let ((proc (car args)))
-        (evaluate (v/t 'list
+        (evaluate (to-typed-list
                        (list (v/t 'quote proc)
                              (v/t 'quote (v/t 'closure continuation))))
                   env))))))
@@ -331,100 +389,42 @@
 
 (define (subr.map args env)
   (define (exec-map proc args-list env)
-    (if (memq () args-list)
+    (if (memq 'empty (map (lambda (a) (a 'type)) args-list))
       (v/t 'empty ())
-      (let* ((args (map car args-list))
-             (result (evaluate (v/t 'list (cons (v/t 'quote proc) args)) env)))
+      (let* ((args (map (lambda (a) (v/t 'quote a))
+                        (map w-car args-list)))
+             (result (evaluate (to-typed-list (cons (v/t 'quote proc) args)) env)))
         (if (result 'error?)
           result 
-          (let ((rest (exec-map proc (map cdr args-list) env)))
-            (cond ((rest 'error?) rest)
-                  ((eq? 'empty (rest 'type)) (v/t 'list (list result)))
-                  (else (v/t 'list (cons result (rest 'value))))))))))
+          (let ((rest (exec-map proc (map w-cdr args-list) env)))
+            (if (rest 'error?)
+              rest
+              (v/t 'list (cons result rest))))))))
 
   (if (< (length args) 1)
     (v/t 'error "wrong number of arguments")
     (let ((proc (car args))
           (as (cdr args)))
-      (if (not (check-all (lambda (a) (eq? 'list (a 'type))) as))
+      (if (not (check-all w-list? as))
         (v/t 'error "argument lists contained an improper list")
-        (exec-map proc (map (lambda (a) (a 'value)) as) env)))))
+        (exec-map proc as env)))))
 
 
 (define (subr.apply args env)
   (define (get-args args)
     (if (null? (cdr args))
-      ((car args) 'value)
-      (cons (car args) (get-args (cdr args)))))
+      (car args)
+      (v/t 'list (cons (car args) (get-args (cdr args))))))
 
   (cond ((< (length args) 2) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'list ((last args) 'type))) (v/t 'error
-                                                    "improper list not allowed"))
+        ((not (w-list? (last args))) (v/t 'error "improper list not allowed"))
         (else
           (let ((proc (car args))
                 (rest (cdr args)))
             (evaluate (v/t 'list
                            (cons (v/t 'quote proc)
-                                 (map (lambda (a) (v/t 'quote a)) (get-args rest))))
+                                 (w-map (lambda (a) (v/t 'quote a)) (get-args rest))))
                       env)))))
-
-
-(define (subr.string-ref args env)
-  (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
-        ((>= ((cadr args) 'value) (string-length ((car args) 'value)))
-            (v/t 'error "out of range"))
-        (else (v/t 'char (string-ref ((car args) 'value) ((cadr args) 'value))))))
-
-
-(define (subr.string-length args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        (else (v/t 'number (string-length ((car args) 'value))))))
-
-
-(define (subr.char-alphabetic? args env)
-  (if (not (= 1 (length args)))
-    (v/t 'error "wrong number of arguments")
-    (v/t 'bool (char-alphabetic? ((car args) 'value)))))
-
-
-(define (subr.char-numeric? args env)
-  (if (not (= 1 (length args)))
-    (v/t 'error "wrong number of arguments")
-    (v/t 'bool (char-numeric? ((car args) 'value)))))
-
-
-(define (subr.string->list args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        (else (v/t 'list (map (lambda (ch) (v/t 'char ch))
-                              (string->list ((car args) 'value)))))))
-
-
-(define (subr.list->string args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'list ((car args) 'type))) (v/t 'error "list required"))
-        ((not (check-all (lambda (ch) (eq? 'char (ch 'type))) ((car args) 'value)))
-          (v/t 'error "char required"))
-        (else (v/t 'string (list->string (map (lambda (a) (a 'value))
-                                         ((car args) 'value)))))))
-
-
-(define (subr.string-copy args env)
-  (cond ((not (= 3 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        ((not (eq? 'number ((cadr args) 'type))) (v/t 'error "number required"))
-        ((not (eq? 'number ((caddr args) 'type))) (v/t 'error "number required"))
-        (else (v/t 'string (apply string-copy
-                                  (map (lambda (a) (a 'value)) args))))))
-
-
-(define (subr.char->integer args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'char ((car args) 'type))) (v/t 'error "char required"))
-        (else (v/t 'number (char->integer ((car args) 'value))))))
 
 
 (define (subr.assoc args env)
@@ -432,16 +432,16 @@
         ((not (eq? 'list ((cadr args) 'type))) (v/t 'error "list required"))
         (else
           (let ((m (car args)))
-            (let loop ((lst ((cadr args) 'value)))
-              (cond ((null? lst) (v/t 'bool #f))
-                    ((not (pair? ((car lst) 'value))) (loop (cdr lst)))
+            (let loop ((lst (cadr args)))
+              (cond ((w-null? lst) (v/t 'bool #f))
+                    ((not (pair? ((w-car lst) 'value))) (loop (w-cdr lst)))
                     (else
-                      (let ((p ((car lst) 'value)))
+                      (let ((p ((w-car lst) 'value)))
                         (if (eq? (m 'value) ((car p) 'value))
                           (v/t 'list p)
-                          (loop (cdr lst)))))))))))
+                          (loop (w-cdr lst)))))))))))
 
-; others
+; text
 
 
 (define (subr.eof-object? args env)
@@ -451,31 +451,24 @@
 
 
 (define (subr.display args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        (else (begin
-                (display ((car args) 'value))
-                (v/t 'undef ())))))
+  (define (rec tree)
+    (if (not (eq? 'list (tree 'type)))
+      (display (tree 'value))
+      (let loop ((first #t)
+                 (lst tree))
+        (cond ((w-null? lst) (display ")"))
+              ((not (pair? (lst 'value))) (begin
+                                            (display " . ")
+                                            (rec lst)
+                                            (display ")")))
+              (else (begin
+                      (display (if first "(" " "))
+                      (rec (w-car lst))
+                      (loop #f (w-cdr lst))))))))
 
-
-(define (subr.write args env)
-  (cond ((not (= 1 (length args))) (v/t 'error "wrong number of arguments"))
-        ((not (eq? 'string ((car args) 'type))) (v/t 'error "string required"))
-        (else (begin
-                (write ((car args) 'value))
-                (v/t 'undef ())))))
-
-
-(define (subr.newline args env)
-  (if (not (= 0 (length args)))
+  (if (not (= 1 (length args)))
     (v/t 'error "wrong number of arguments")
-    (v/t 'undef (newline))))
-
-
-(define (subr.flush args env)
-  (if (not (= 0 (length args)))
-    (v/t 'error "wrong number of arguments")
-    (v/t 'undef (flush))))
+    (v/t 'undef (rec (car args)))))
 
 
 (define (subr.read-string args env)
@@ -493,6 +486,39 @@
         (v/t 'string result)))))
 
 
+(define (subr.write args env)
+  (define (rec tree)
+    (if (not (eq? 'list (tree 'type)))
+      (write (tree 'value))
+      (let loop ((first #t)
+                 (lst tree))
+        (cond ((w-null? lst) (display ")"))
+              ((not (pair? (lst 'value))) (begin
+                                            (display " . ")
+                                            (rec lst)
+                                            (display ")")))
+              (else (begin
+                      (display (if first "(" " "))
+                      (rec (w-car lst))
+                      (loop #f (w-cdr lst))))))))
+
+  (if (not (= 1 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'undef (rec (car args)))))
+
+
+(define (subr.newline args env)
+  (if (not (= 0 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'undef (newline))))
+
+
+(define (subr.flush args env)
+  (if (not (= 0 (length args)))
+    (v/t 'error "wrong number of arguments")
+    (v/t 'undef (flush))))
+
+
 (define (subr.with-input-from-file args env)
   (cond ((not (= 2 (length args))) (v/t 'error "wrong number of arguments"))
         ((not (eq? 'string  ((car args) 'type))) (v/t 'error "string required"))
@@ -500,7 +526,7 @@
         (else (with-input-from-file
                 ((car args) 'value)
                 (lambda ()
-                  (evaluate (v/t 'list (list (v/t 'quote (cadr args)))) env))))))
+                  (evaluate (to-typed-list (list (v/t 'quote (cadr args)))) env))))))
 
 
 (define (subr.load args env)
@@ -529,4 +555,4 @@
                          (result (read-terms code env)))
                     (cond ((result 'error?) result)
                           ((= (result 'value) (string-length code)) (v/t 'bool #t))
-                          (else (v/t 'error "EOL in the list")))))))))
+                          (else (v/t 'error "EOT in the list")))))))))
