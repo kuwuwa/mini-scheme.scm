@@ -82,6 +82,26 @@
             (args (w-cdr tree)))
         (execute-proc proc args env))))
 
+  ; FOR DEBUGGING
+  ; (define (display-tree tree)
+  ;   (if (not (eq? 'list (tree 'type)))
+  ;     (display (tree 'value))
+  ;     (let loop ((first #t)
+  ;                (lst tree))
+  ;       (cond ((w-null? lst) (display ")"))
+  ;             ((not (pair? (lst 'value))) (begin
+  ;                                           (display " . ")
+  ;                                           (display-tree lst)
+  ;                                           (display ")")))
+  ;             (else (begin
+  ;                     (display (if first "(" " "))
+  ;                     (display-tree (w-car lst))
+  ;                     (loop #f (w-cdr lst))))))))
+
+  ; (newline)
+  ; (display-tree tree)
+  ; (newline)
+
   (or 
     (evaluate-empty tree env)
     (evaluate-bool tree env)
