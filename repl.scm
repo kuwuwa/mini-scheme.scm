@@ -1,8 +1,7 @@
 ; repl.scm
+
 (load "./parser.scm")
 (load "./evaluator.scm")
-(load "./functions.scm")
-(load "./syntaxes.scm")
 (load "./global-env.scm")
 
 (define (repl)

@@ -1,5 +1,8 @@
 ; functions.scm
 
+(load "./list-utils.scm")
+(load "./value-with-type.scm")
+
 
 (define (check-all pred lst)
   (or (null? lst)

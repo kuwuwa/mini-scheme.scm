@@ -1,5 +1,10 @@
 ; global-env.scm
 
+(load "./value-with-type.scm")
+(load "./syntaxes.scm")
+(load "./functions.scm")
+
+
 (define global-env
   (frame 
     (list

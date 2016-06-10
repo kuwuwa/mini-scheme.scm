@@ -1,6 +1,7 @@
 ; evaluator.scm
 
-(load "./list-util.scm")
+(load "./value-with-type.scm")
+(load "./list-utils.scm")
 
 
 (define (evaluate tree env)
@@ -82,26 +83,6 @@
             (args (w-cdr tree)))
         (execute-proc proc args env))))
 
-  ; FOR DEBUGGING
-  ; (define (display-tree tree)
-  ;   (if (not (eq? 'list (tree 'type)))
-  ;     (display (tree 'value))
-  ;     (let loop ((first #t)
-  ;                (lst tree))
-  ;       (cond ((w-null? lst) (display ")"))
-  ;             ((not (pair? (lst 'value))) (begin
-  ;                                           (display " . ")
-  ;                                           (display-tree lst)
-  ;                                           (display ")")))
-  ;             (else (begin
-  ;                     (display (if first "(" " "))
-  ;                     (display-tree (w-car lst))
-  ;                     (loop #f (w-cdr lst))))))))
-
-  ; (newline)
-  ; (display-tree tree)
-  ; (newline)
-
   (or 
     (evaluate-empty tree env)
     (evaluate-bool tree env)
@@ -112,3 +93,52 @@
     (evaluate-quote tree env)
     (evaluate-list tree env)
     (v/t 'error "undefined")))
+
+
+(define (evaluate-bindings tree env)
+  (define invalid-syntax (v/t 'error "invalid syntax"))
+
+  (let loop ((bindings tree))
+    (if (null? bindings)
+      (v/t 'bindings '())
+      (let ((cell (car bindings)))
+        (if (or (not (w-list? cell))
+                (not (= (w-length cell) 2)))
+          invalid-syntax
+          (let ((label (w-car cell))
+                (value (evaluate (w-cadr cell) env)))
+            (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
+                  ((value 'error?) value)
+                  (else
+                    (let ((binding (cons (label 'value) value))
+                          (rest (loop (cdr bindings))))
+                      (if (rest 'error?)
+                        rest
+                        (v/t 'bindings (cons binding (rest 'value)))))))))))))
+
+
+(define (evaluate-body _body env)
+  (let loop ((body _body)
+             (return-value (v/t 'undef '())))
+    (if (null? body)
+      return-value
+      (let* ((term (car body))
+             (rest (cdr body)))
+        (let ((value (evaluate term env)))
+          (if (value 'error?)
+            value
+            (loop rest value)))))))
+
+
+(define (check-body _body)
+  (let loop ((body _body)
+             (prev-type 'define))
+    (if (null? body)
+      (if (eq? prev-type 'define)
+        (v/t 'error "invalid body form")
+        (v/t 'ok "no problem :)"))
+      (let ((term (car body))
+            (rest (cdr body)))
+        (if (and (not (eq? prev-type 'define)) (eq? (term 'type) 'define))
+          (v/t 'error "invalid body form")
+          (loop rest (term 'type)))))))

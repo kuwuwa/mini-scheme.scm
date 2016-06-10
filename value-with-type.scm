@@ -1,4 +1,4 @@
-; result.scm
+; value-with-type.scm
 
 (define (value-with-type type value)
   ; a closure that represents a result of parsing/evaluation

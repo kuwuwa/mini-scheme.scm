@@ -1,5 +1,6 @@
 ; parser.scm
 
+(load "./value-with-type.scm")
 
 (define (delimiter? ch) (memq ch '(#\  #\newline)))
 

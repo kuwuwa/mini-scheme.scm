@@ -1,12 +1,12 @@
 ; syntaxes.scm
 
-(load "./list-util.scm")
-(load "./evaluator.scm")
 (load "./frame.scm")
-(load "./result.scm")
+(load "./list-utils.scm")
+(load "./evaluator.scm")
+(load "./value-with-type.scm")
 
-; Define ::= (define Id Exp)
-;     | (define (Id Id* [. Id]) Body)
+
+; define
 
 (define (syntax-define args env)
   (define err-malformed (v/t 'error "malformed define"))
@@ -55,6 +55,8 @@
             closure-symbol))))))
 
 
+; lambda
+
 (define (syntax-lambda args env)
   (define err-malformed (v/t 'error "malformed lambda"))
 
@@ -65,6 +67,8 @@
                    (to-plain-list (w-cdr args)) env))))
 
 
+; quote
+
 (define (syntax-quote args env)
   (define err-malformed (v/t 'error "malformed quote"))
 
@@ -72,6 +76,8 @@
     err-malformed
     (w-car args)))
 
+
+; set!
 
 (define (syntax-set! args env)
   (define err-malformed (v/t 'error "malformed set!"))
@@ -88,6 +94,8 @@
             rc
             value))))))
 
+
+; let
 
 (define (syntax-let args env)
   (define err-malformed (v/t 'error "malformed let"))
@@ -189,6 +197,8 @@
         (evaluate-body (to-plain-list (w-cdr args)) new-env)))))
 
 
+; if
+
 (define (syntax-if args env)
   (if (or (not (w-list? args))
           (not (eq? 3 (w-length args))))
@@ -198,6 +208,8 @@
             ((condition 'value) (evaluate (w-cadr args) env))
             (else (evaluate (w-caddr args) env))))))
 
+
+; cond
 
 (define (syntax-cond args _env)
   (define (check-cond _args)
@@ -223,9 +235,13 @@
     (loop (to-plain-list args) _env)))
 
 
+; else
+
 (define (syntax-else args env)
   (v/t 'error "invalid syntax"))
 
+
+; and
 
 (define (syntax-and _args env)
   (let loop ((args (to-plain-list _args))
@@ -237,6 +253,7 @@
               ((not (val 'value)) (v/t 'bool #f))
               (else (loop (cdr args) val)))))))
 
+; or 
 
 (define (syntax-or _args env)
   (let loop ((args (to-plain-list _args))
@@ -249,6 +266,8 @@
               (else (loop (cdr args) val)))))))
 
 
+; and
+
 (define (syntax-begin _args env)
   (let loop ((args (to-plain-list _args))
              (ret (v/t 'undef '())))
@@ -259,6 +278,8 @@
           val
           (loop (cdr args) val))))))
 
+
+; do
 
 (define (syntax-do args env)
   (define err-malformed (v/t 'error "malformed do"))
@@ -366,29 +387,7 @@
             (v/t 'symbol macro-name)))))
 
 
-; utils
-
-(define (evaluate-bindings tree env)
-  (let loop ((bindings tree))
-    (define invalid-syntax (v/t 'error "invalid syntax"))
-
-    (if (null? bindings)
-      (v/t 'bindings '())
-      (let ((cell (car bindings)))
-        (if (or (not (w-list? cell))
-                (not (= (w-length cell) 2)))
-          invalid-syntax
-          (let ((label (w-car cell))
-                (value (evaluate (w-cadr cell) env)))
-            (cond ((not (eq? 'symbol (label 'type))) invalid-syntax)
-                  ((value 'error?) value)
-                  (else
-                    (let ((binding (cons (label 'value) value))
-                          (rest (loop (cdr bindings))))
-                      (if (rest 'error?)
-                        rest
-                        (v/t 'bindings (cons binding (rest 'value)))))))))))))
-
+; closure
 
 (define (new-closure symbols body callee-env)
   (define (evaluate-args _args env)
@@ -438,30 +437,3 @@
     (if (check-result 'error?)
       check-result
       (v/t 'closure closure))))
-
-
-(define (evaluate-body _body env)
-  (let loop ((body _body)
-             (return-value (v/t 'undef '())))
-    (if (null? body)
-      return-value
-      (let* ((term (car body))
-             (rest (cdr body)))
-        (let ((value (evaluate term env)))
-          (if (value 'error?)
-            value
-            (loop rest value)))))))
-
-
-(define (check-body _body)
-  (let loop ((body _body)
-             (prev-type 'define))
-    (if (null? body)
-      (if (eq? prev-type 'define)
-        (v/t 'error "invalid body form")
-        (v/t 'ok "no problem :)"))
-      (let ((term (car body))
-            (rest (cdr body)))
-        (if (and (not (eq? prev-type 'define)) (eq? (term 'type) 'define))
-          (v/t 'error "invalid body form")
-          (loop rest (term 'type)))))))

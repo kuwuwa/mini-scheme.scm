@@ -1,5 +1,6 @@
 ; list-util.scm
 
+(load "./value-with-type.scm")
 
 (define (w-car v) (car (v 'value)))
 (define (w-cdr v) (cdr (v 'value)))
